@@ -42,7 +42,7 @@ public class ConcurrentWithdrawer {
 
 
         ThreadPoolExecutor executor =
-                (ThreadPoolExecutor) Executors.newFixedThreadPool(6);
+                (ThreadPoolExecutor) Executors.newFixedThreadPool(5);
 
         List<Future> futures = new ArrayList<Future>();
         for (int i = 0; i < 5; i++) {
@@ -97,8 +97,6 @@ public class ConcurrentWithdrawer {
             }));
         }
 
-
-
         List<Integer> monies = new ArrayList<>();
         for (Future f : futures) {
             int foundMoney = (Integer) f.get();
@@ -145,13 +143,11 @@ public class ConcurrentWithdrawer {
         private long transactionStart;
         private int reread;
         private boolean valid;
-        private boolean paused;
 
         public Transaction(List<Transaction> transactions, int id, Map<String, Integer> database) {
             this.transactions = transactions;
             this.id = id;
             this.database = database;
-            transactionStart = System.nanoTime();
         }
 
 
@@ -171,19 +167,22 @@ public class ConcurrentWithdrawer {
             long largestWrite = 0L;
             long largestRead = 0L;
             List<Transaction> cloned = new ArrayList<>(transactions);
-
-            Set<String> conflictingKeys = new HashSet<>();
-            for (TransactionStep thisStep : steps) {
-                if (thisStep instanceof ReadStep) {
-                    conflictingKeys.add(((ReadStep)thisStep).key);
-                } else if (thisStep instanceof WriteStep) {
-                    conflictingKeys.add(((WriteStep)thisStep).key);
+            cloned.sort(new Comparator<Transaction>() {
+                @Override
+                public int compare(Transaction o1, Transaction o2) {
+                    return (int) (o1.transactionStart - o2.transactionStart);
                 }
-
+            });
+            Set<String> conflictingKeys = new HashSet<>();
+            for (TransactionStep transactionStep : steps) {
+                if (transactionStep instanceof ReadStep) {
+                    conflictingKeys.add(((ReadStep)transactionStep).key);
+                } else if (transactionStep instanceof WriteStep) {
+                    conflictingKeys.add(((WriteStep)transactionStep).key);
+                }
             }
 
             for (Transaction transaction : cloned) {
-                if (transaction.paused) { continue ; }
                 ArrayList<TransactionStep> clonedSteps = new ArrayList<>(transaction.steps);
                 for (TransactionStep step : clonedSteps) {
                     for (TransactionStep thisStep : steps) {
@@ -192,7 +191,6 @@ public class ConcurrentWithdrawer {
                             ReadStep readStep = (ReadStep) step;
                             if (thisReadStep.key.equals(readStep.key)) {
                                 if (thisReadStep.timestamp > readStep.timestamp) {
-
                                     // return true;
                                 }
                             }
@@ -200,8 +198,8 @@ public class ConcurrentWithdrawer {
                         if (step instanceof WriteStep && thisStep instanceof WriteStep) {
                             WriteStep thisWriteStep = (WriteStep) thisStep;
                             WriteStep writeStep = (WriteStep) step;
-                            if (thisWriteStep.timestamp > writeStep.timestamp && conflictingKeys.contains(writeStep.key)) {
-                               return true;
+                            if (thisWriteStep.timestamp > writeStep.timestamp && conflictingKeys.contains(((WriteStep) step).key)) {
+                                return true;
                             }
                         }
                     }
@@ -215,19 +213,9 @@ public class ConcurrentWithdrawer {
         public void commit() {
             boolean needsRunning = true;
             int retryCount = 0;
+            transactionStart = System.nanoTime();
 
-            while (needsRunning || invalid()) {
-                while (transactions.indexOf(this) != 0) {
-                    synchronized (this) {
-                        try {
-                            this.paused = true;
-                            wait();
-                            this.paused = false;
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
+            do {
                 readTimestamp = 0L;
                 writeTimestamp = 0L;
                 readTargets.clear();
@@ -238,9 +226,8 @@ public class ConcurrentWithdrawer {
                     step.run(transactionContext);
                 }
 
-                needsRunning = false;
-            }
-            this.paused = true;
+            } while (invalid());
+
 
             System.out.println(String.format("Retry count was %d", retryCount));
 
@@ -256,13 +243,6 @@ public class ConcurrentWithdrawer {
 
             transactions.remove(this);
             transactionFinish = System.nanoTime();
-
-            if (transactions.size() > 0) {
-
-                synchronized (transactions.get(0)) {
-                    transactions.get(0).notify();
-                }
-            }
 
         }
     }
