@@ -1,11 +1,21 @@
 plugins {
     id 'java-gradle-plugin'
+    id "application"
+    id "java"
 }
-
 repositories {
     mavenCentral()
 }
 
 dependencies {
 
+}
+
+
+ext {
+    javaMainClass = "main.ConcurrentWithdrawer"
+}
+
+application {
+    mainClassName = javaMainClass
 }
