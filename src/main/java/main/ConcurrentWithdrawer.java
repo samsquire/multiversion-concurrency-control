@@ -42,66 +42,54 @@ public class ConcurrentWithdrawer {
 
 
         ThreadPoolExecutor executor =
-                (ThreadPoolExecutor) Executors.newFixedThreadPool(5);
+                (ThreadPoolExecutor) Executors.newFixedThreadPool(26);
 
         List<Future> futures = new ArrayList<Future>();
         for (int i = 0; i < 5; i++) {
-            futures.add(executor.submit(new Callable<Integer>() {
-                @Override
-                public Integer call() {
+            for (int j = 0; j < 5; j++) {
 
-                    for (int j = 0; j < 5; j++) {
+                Transaction transaction = beginTransaction(transactions, database);
 
-                        Transaction transaction = beginTransaction(transactions, database);
-
-                        transaction.read("fromBalance", "fromAccountName", (context) -> {
-                            int fromAccount = getRandomNumberInRange(0, 4);
-                            String fromAccountName = String.format("account%d", fromAccount);
-                            return fromAccountName;
-                        }).read("toBalance", "toAccountName", (context) -> {
-                            int toAccount = getRandomNumberInRange(0, 4);
-                            String toAccountName = String.format("account%d", toAccount);
-                            while (toAccountName.equals(context.lookupName("fromAccountName"))) {
-                                toAccount = getRandomNumberInRange(0, 4);
-                                toAccountName = String.format("account%d", toAccount);
-                            }
-                            return toAccountName;
-                        }).write("fromAccountName", (writeContext) -> {
-                            int difference;
-                            TransactionContext context = writeContext.context;
-                            if (context.get("fromBalance") >= 100) {
-                                difference = 100;
-                            } else {
-                                difference = 0;
-                            }
-                            context.write(writeContext.writeStep, "fromAccountName", context.get("fromBalance") - difference);
-                            context.put("difference", difference);
-                        }).write("toAccountName", (writeContext) -> {
-                            TransactionContext context = writeContext.context;
-                            context.write(writeContext.writeStep, "toAccountName", context.get("toBalance") + context.get("difference"));
-                        }).commit();
-
+                transaction.read("fromBalance", "fromAccountName", (context) -> {
+                    int fromAccount = getRandomNumberInRange(0, 4);
+                    String fromAccountName = String.format("account%d", fromAccount);
+                    return fromAccountName;
+                }).read("toBalance", "toAccountName", (context) -> {
+                    int toAccount = getRandomNumberInRange(0, 4);
+                    String toAccountName = String.format("account%d", toAccount);
+                    while (toAccountName.equals(context.lookupName("fromAccountName"))) {
+                        toAccount = getRandomNumberInRange(0, 4);
+                        toAccountName = String.format("account%d", toAccount);
                     }
-
-                    int foundMoney = 0;
-                    for (int j = 0; j < numberAccounts; j++) {
-                        Integer foundMoney1;
-                        String account = String.format("account%d", j);
-                        foundMoney1 = database.get(account);
-
-                        foundMoney += foundMoney1;
+                    return toAccountName;
+                }).write("fromAccountName", (writeContext) -> {
+                    int difference;
+                    TransactionContext context = writeContext.context;
+                    if (context.get("fromBalance") >= 100) {
+                        difference = 100;
+                    } else {
+                        difference = 0;
                     }
-
-                    return foundMoney;
-                }
-            }));
+                    context.write(writeContext.writeStep, "fromAccountName", context.get("fromBalance") - difference);
+                    context.put("difference", difference);
+                }).write("toAccountName", (writeContext) -> {
+                    TransactionContext context = writeContext.context;
+                    context.write(writeContext.writeStep, "toAccountName", context.get("toBalance") + context.get("difference"));
+                }).commit();
+            }
         }
 
+        futures = schedule(executor);
+
         List<Integer> monies = new ArrayList<>();
+
+
         for (Future f : futures) {
             int foundMoney = (Integer) f.get();
             monies.add(foundMoney);
         }
+
+
         System.out.println("Totals while running");
         for (Integer money : monies) {
             System.out.println(money);
@@ -126,6 +114,149 @@ public class ConcurrentWithdrawer {
         Transaction transaction = new Transaction(transactions, transactionCount, database);
         this.transactions.add(transaction);
         return transaction;
+    }
+
+    public List<Future> schedule(ThreadPoolExecutor executor) {
+        List<Future> futures = new ArrayList<Future>();
+        List<List<Transaction>> batches = new ArrayList<>();
+        List<Transaction> lastBatch = new ArrayList<>();
+        batches.add(lastBatch);
+        HashMap<Transaction, List<Transaction>> lookup = new HashMap<>();
+        List<Transaction> added = new ArrayList<>();
+        List<Transaction> cloned = new ArrayList<>(transactions);
+        for (Transaction transaction : cloned) {
+            List<TransactionStep> clonedSteps = new ArrayList<>(transaction.steps);
+            for (TransactionStep step : clonedSteps) {
+                if (step instanceof ReadStep) {
+                    String outerKey = ((ReadStep) step).key;
+                    // check for duplicates
+                    for (Transaction innerTransaction : cloned) {
+                        if (innerTransaction == transaction) {
+                            continue;
+                        }
+                        List<TransactionStep> clonedInnerSteps = new ArrayList<>(innerTransaction.steps);
+                        for (TransactionStep innerStep : clonedInnerSteps) {
+                            String key = "";
+                            if (innerStep instanceof WriteStep) {
+                                key = ((WriteStep) innerStep).key;
+                            } else {
+                                continue;
+                            }
+                            if (key == null) {
+                                continue;
+                            }
+
+                            if (key.equals(outerKey)) {
+
+                                // System.out.println(String.format("Transaction %s and %s cannot run parallel", transaction, innerTransaction));
+                                if (!added.contains(transaction)) {
+                                    boolean found = false;
+                                    // find a batch that doesn't conflict
+                                    for (List<Transaction> batch : batches) {
+                                        if (!batch.contains(innerTransaction)) {
+                                            System.out.println("Found a batch that doesn't conflict");
+                                            batch.add(transaction);
+                                            added.add(transaction);
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!found) {
+                                        System.out.println("Couldn't find batch to add to, creating new one");
+                                        // create a new transaction and add it
+                                        lastBatch = new ArrayList<>();
+                                        added.add(transaction);
+                                        lastBatch.add(transaction);
+                                        batches.add(lastBatch);
+                                    }
+
+                                }
+                                if (!added.contains(innerTransaction)) {
+                                    boolean found = false;
+                                    // find a batch that doesn't conflict
+                                    for (List<Transaction> batch : batches) {
+                                        if (!batch.contains(transaction)) {
+                                            System.out.println("Found a batch that doesn't conflict");
+                                            batch.add(innerTransaction);
+                                            added.add(innerTransaction);
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!found) {
+                                        System.out.println("Couldn't find batch to add to, creating new one");
+                                        // create a new transaction and add it
+                                        lastBatch = new ArrayList<>();
+                                        lastBatch.add(innerTransaction);
+                                        added.add(innerTransaction);
+                                        batches.add(lastBatch);
+                                    }
+                                }
+                            } else {
+                                if (!added.contains(transaction)) {
+                                    lastBatch.add(transaction);
+
+                                    added.add(transaction);
+
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+        }
+        final List<List<Future>> futureBatches = new ArrayList<>();
+        final List<Future> currentBatch = new ArrayList<>();
+        futureBatches.add(currentBatch);
+
+        System.out.println(batches);
+
+        for (List<Transaction> batch : batches) {
+            final int index = batches.indexOf(batch);
+            System.out.format("Processing batch %d\n", index);
+
+            for (Transaction transaction : batch) {
+                Callable<Integer> task1 = new Callable<Integer>() {
+                    @Override
+                    public Integer call() {
+                        int actualIndex = index;
+
+
+                        if (actualIndex > 0) {
+                            for (Future future : new ArrayList<>(futureBatches.get(actualIndex - 1))) {
+                                try {
+
+                                    future.get();
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                } catch (ExecutionException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        } else {
+                        }
+                        transaction.execute();
+                        int foundMoney = 0;
+                        for (int j = 0; j < 5; j++) {
+                            Integer foundMoney1;
+                            String account = String.format("account%d", j);
+                            foundMoney1 = database.get(account);
+
+                            foundMoney += foundMoney1;
+                        }
+
+                        return foundMoney;
+                    }
+                };
+                Future<Integer> task = executor.submit(task1);
+                System.out.println("Created task " + task.toString());
+                futures.add(task);
+                futureBatches.get(index).add(task);
+            }
+            futureBatches.add(new ArrayList<>());
+        }
+        return futures;
     }
 
     private class Transaction {
@@ -176,9 +307,9 @@ public class ConcurrentWithdrawer {
             Set<String> conflictingKeys = new HashSet<>();
             for (TransactionStep transactionStep : steps) {
                 if (transactionStep instanceof ReadStep) {
-                    conflictingKeys.add(((ReadStep)transactionStep).key);
+                    conflictingKeys.add(((ReadStep) transactionStep).key);
                 } else if (transactionStep instanceof WriteStep) {
-                    conflictingKeys.add(((WriteStep)transactionStep).key);
+                    conflictingKeys.add(((WriteStep) transactionStep).key);
                 }
             }
 
@@ -210,28 +341,19 @@ public class ConcurrentWithdrawer {
             return false;
         }
 
-        public void commit() {
-            boolean needsRunning = true;
-            int retryCount = 0;
+        public Transaction commit() {
             transactionStart = System.nanoTime();
-
-            do {
-                readTimestamp = 0L;
-                writeTimestamp = 0L;
-                readTargets.clear();
-                retryCount++;
-                active = true;
-
-                for (TransactionStep step : steps) {
-                    step.run(transactionContext);
-                }
-
-            } while (invalid());
+            for (TransactionStep step : steps) {
+                step.run(transactionContext);
+            }
+            return this;
+        }
 
 
-            System.out.println(String.format("Retry count was %d", retryCount));
-
-
+        public void execute() {
+            for (TransactionStep step : steps) {
+                step.run(transactionContext);
+            }
             for (TransactionStep step : steps) {
                 if (step instanceof ReadStep) {
                     String key = ((ReadStep) step).key;
@@ -239,11 +361,6 @@ public class ConcurrentWithdrawer {
                     database.put(key, value);
                 }
             }
-
-
-            transactions.remove(this);
-            transactionFinish = System.nanoTime();
-
         }
     }
 
