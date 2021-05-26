@@ -1,5 +1,6 @@
 package main;
 
+
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
@@ -102,6 +103,11 @@ public class ConcurrentWithdrawer {
             int foundMoney = (Integer) f.get();
             monies.add(foundMoney);
         }
+
+        for (Transaction t : transactions) {
+            assert t.timesRan == 1;
+        }
+
         System.out.println("Totals while running");
         for (Integer money : monies) {
             System.out.println(money);
@@ -122,10 +128,14 @@ public class ConcurrentWithdrawer {
     }
 
     private Transaction beginTransaction(List<Transaction> transactions, Map<String, Integer> database) {
-        transactionCount = transactionCount + 1;
-        Transaction transaction = new Transaction(transactions, transactionCount, database);
-        this.transactions.add(transaction);
-        return transaction;
+
+        synchronized (database) {
+            Transaction transaction = new Transaction(transactions, transactionCount, database);
+            transactionCount = transactionCount + 1;
+            this.transactions.add(transaction);
+            return transaction;
+        }
+
     }
 
     private class Transaction {
@@ -133,7 +143,7 @@ public class ConcurrentWithdrawer {
         public Long writeTimestamp = 0L;
         public List<String> readTargets = new ArrayList<>();
         private List<Transaction> transactions;
-        private final int id;
+        private int id = 0;
         private Map<String, Integer> database;
         private List<TransactionStep> steps = new ArrayList<>();
         private TransactionContext transactionContext = new TransactionContext();
@@ -143,6 +153,13 @@ public class ConcurrentWithdrawer {
         private long transactionStart;
         private int reread;
         private boolean valid;
+        private Set<Transaction> conflicts = new HashSet<>();
+        private boolean completed;
+        private boolean ran;
+        private boolean marked;
+        private int timesRan = 0;
+        private boolean processingConflicts;
+        private Transaction parent;
 
         public Transaction(List<Transaction> transactions, int id, Map<String, Integer> database) {
             this.transactions = transactions;
@@ -150,6 +167,19 @@ public class ConcurrentWithdrawer {
             this.database = database;
         }
 
+        @Override
+        public String toString() {
+            String output = "";
+            for (TransactionStep step : steps) {
+                if (step instanceof WriteStep) {
+                    output += ((WriteStep)step).key + " ";
+                }
+                if (step instanceof ReadStep) {
+                    output += ((ReadStep)step).key = " ";
+                }
+            }
+            return output;
+        }
 
         public Transaction read(String field, String name, Function<TransactionContext, String> keyGetter) {
             ReadStep step = new ReadStep(this, field, keyGetter);
@@ -164,6 +194,9 @@ public class ConcurrentWithdrawer {
         }
 
         public boolean invalid() {
+            if (marked) {
+                return true;
+            }
             long largestWrite = 0L;
             long largestRead = 0L;
             List<Transaction> cloned = new ArrayList<>(transactions);
@@ -176,9 +209,9 @@ public class ConcurrentWithdrawer {
             Set<String> conflictingKeys = new HashSet<>();
             for (TransactionStep transactionStep : steps) {
                 if (transactionStep instanceof ReadStep) {
-                    conflictingKeys.add(((ReadStep)transactionStep).key);
+                    conflictingKeys.add(((ReadStep) transactionStep).key);
                 } else if (transactionStep instanceof WriteStep) {
-                    conflictingKeys.add(((WriteStep)transactionStep).key);
+                    conflictingKeys.add(((WriteStep) transactionStep).key);
                 }
             }
 
@@ -190,7 +223,7 @@ public class ConcurrentWithdrawer {
                             ReadStep thisReadStep = (ReadStep) thisStep;
                             ReadStep readStep = (ReadStep) step;
                             if (thisReadStep.key.equals(readStep.key)) {
-                                if (thisReadStep.timestamp > readStep.timestamp) {
+                                if (thisReadStep.timestamp < readStep.timestamp) {
                                     // return true;
                                 }
                             }
@@ -198,8 +231,10 @@ public class ConcurrentWithdrawer {
                         if (step instanceof WriteStep && thisStep instanceof WriteStep) {
                             WriteStep thisWriteStep = (WriteStep) thisStep;
                             WriteStep writeStep = (WriteStep) step;
-                            if (thisWriteStep.timestamp > writeStep.timestamp && conflictingKeys.contains(((WriteStep) step).key)) {
-                                return true;
+                            if (conflictingKeys.contains(writeStep.key)) {
+                                if (thisWriteStep.timestamp > writeStep.timestamp) {
+                                    return true;
+                                }
                             }
                         }
                     }
@@ -211,44 +246,141 @@ public class ConcurrentWithdrawer {
         }
 
         public void commit() {
+
             boolean needsRunning = true;
+            completed = true;
             int retryCount = 0;
             transactionStart = System.nanoTime();
-
-            do {
-                readTimestamp = 0L;
-                writeTimestamp = 0L;
-                readTargets.clear();
-                retryCount++;
-                active = true;
-
-                for (TransactionStep step : steps) {
-                    step.run(transactionContext);
-                }
-
-            } while (invalid());
-
-
-            System.out.println(String.format("Retry count was %d", retryCount));
-
+            boolean ran = false;
 
             for (TransactionStep step : steps) {
-                if (step instanceof ReadStep) {
-                    String key = ((ReadStep) step).key;
-                    Integer value = transactionContext.context.get(key);
-                    database.put(key, value);
+                step.resolve(transactionContext);
+            }
+
+            List<List<Transaction>> grouped;
+            synchronized (transactions) {
+                grouped = groupify();
+            }
+            int identity = id;
+            System.out.println(identity);
+            System.out.println(grouped.size());
+
+            if (identity <= grouped.size() - 1) {
+                System.out.println("We're doing");
+                List<Transaction> currentGroup = grouped.get(identity);
+
+                for (Transaction transaction : currentGroup) {
+                    for (TransactionStep step : transaction.steps) {
+                        step.resolve(transaction.transactionContext);
+                        step.run(transaction.transactionContext);
+                    }
+
+                    for (TransactionStep step : transaction.steps) {
+                        if (step instanceof WriteStep) {
+                            String key = ((WriteStep) step).key;
+                            Integer value = transaction.transactionContext.context.get(key);
+                            database.put(key, value);
+                        }
+                    }
+                    transactions.remove(transaction);
+                }
+                System.out.println(currentGroup);
+            } else {
+                System.out.println("We don't have to do anything");
+            }
+
+        }
+
+        public void addConflict(Transaction transaction) {
+            this.conflicts.add(transaction);
+        }
+
+        class MustAddToGroup {
+            public final List<Transaction> group;
+            public final Transaction transaction;
+
+            public MustAddToGroup(List<Transaction> group, Transaction transaction) {
+
+                this.group = group;
+                this.transaction = transaction;
+            }
+        }
+
+        private List<List<Transaction>> groupify() {
+            List<List<Transaction>> groups = new ArrayList<>();
+            groups.add(new ArrayList<Transaction>());
+            boolean error = false;
+            List<Transaction> cloned = new ArrayList<>(transactions);
+
+            groups.get(0).add(cloned.get(0));
+            int currentGroupIndex = 0;
+
+            for (Transaction transaction : cloned.subList(1, cloned.size())) {
+
+
+                Set<String> conflictingKeys = new HashSet<>();
+                for (TransactionStep transactionStep : transaction.steps) {
+                    if (transactionStep instanceof ReadStep) {
+                        conflictingKeys.add(((ReadStep) transactionStep).key);
+                    } else if (transactionStep instanceof WriteStep) {
+                        conflictingKeys.add(((WriteStep) transactionStep).key);
+                    }
+                }
+                // can we join the current group ?
+                List<Transaction> newGroup = null;
+                newGroup = new ArrayList<Transaction>();
+                boolean inserted = false;
+                boolean mustAddToGroup = false;
+                mustAddToGroup = false;
+                for (List<Transaction> currentGroup : groups) {
+                    List<MustAddToGroup> additions = new ArrayList<>();
+
+                    for (Transaction existing : currentGroup) {
+
+                        for (TransactionStep existingStep : existing.steps) {
+                            if (existingStep instanceof ReadStep) {
+                                if (conflictingKeys.contains(((ReadStep) existingStep).key)) {
+                                    mustAddToGroup = true;
+                                }
+                            } else if (existingStep instanceof WriteStep) {
+                                if (conflictingKeys.contains(((WriteStep) existingStep).key)) {
+                                    mustAddToGroup = true;
+                                }
+                            }
+                        }
+                        if (!inserted && mustAddToGroup) {
+                            additions.add(new MustAddToGroup(currentGroup, transaction));
+                            inserted = true;
+                            break;
+                        }
+
+                    }
+
+
+                    for (MustAddToGroup addition : additions) {
+                        addition.group.add(addition.transaction);
+                        break;
+                    }
+                }
+                if (!inserted) {
+                    newGroup.add(transaction);
+                }
+                if (newGroup.size() > 0) {
+                    groups.add(newGroup);
+
                 }
             }
 
 
-            transactions.remove(this);
-            transactionFinish = System.nanoTime();
 
+            return groups;
         }
     }
 
     private interface TransactionStep {
         TransactionContext run(TransactionContext context);
+
+        void resolve(TransactionContext context);
     }
 
     private class ReadStep implements TransactionStep {
@@ -266,11 +398,16 @@ public class ConcurrentWithdrawer {
             this.activated = false;
         }
 
-        public TransactionContext run(TransactionContext context) {
+        public void resolve(TransactionContext context) {
             if (!activated) {
                 key = (String) this.keyGetter.apply(context);
             }
             activated = true;
+        }
+
+        public TransactionContext run(TransactionContext context) {
+
+
             timestamp = System.nanoTime();
             context.put(field, database.get(key));
             if (transaction.readTimestamp == 0L) {
@@ -336,6 +473,11 @@ public class ConcurrentWithdrawer {
             writer.accept(new WriteContext(this, context));
             activated = true;
             return context;
+        }
+
+        @Override
+        public void resolve(TransactionContext context) {
+
         }
     }
 
