@@ -27,7 +27,7 @@ class TransactionB extends Thread implements MVCC.Transaction {
         while (aborted) {
             while (true) {
                 timestamp = mvcc.issue();
-                System.out.println("Was previously aborted");
+                System.out.println(String.format("Was previously aborted %d", timestamp));
                 MVCC.Writehandle writeA = mvcc.intend_to_write(this,"A", 10);
                 if (writeA == null) {
                     break;
@@ -45,7 +45,7 @@ class TransactionB extends Thread implements MVCC.Transaction {
                     break;
                 }
                 writehandles.add(writeC);
-
+                System.out.println(String.format("%d committing", timestamp));
                 mvcc.commit(this);
                 mvcc.dump();
                 break;

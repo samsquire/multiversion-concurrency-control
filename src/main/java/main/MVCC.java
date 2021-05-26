@@ -1,16 +1,17 @@
 package main;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MVCC {
 
-    private final HashMap<String, HashMap<Integer, Integer>> database;
-    private final HashMap<String, Integer> committed;
+    private ConcurrentHashMap<String, ConcurrentHashMap<Integer, Integer>> database;
+    private ConcurrentHashMap<String, Integer> committed;
     private int counter;
 
     public MVCC() {
-        this.database = new HashMap<>();
-        this.committed = new HashMap<>();
+        this.database = new ConcurrentHashMap<>();
+        this.committed = new ConcurrentHashMap<>();
 
         this.counter = 0;
     }
@@ -24,6 +25,14 @@ public class MVCC {
     public void dump() {
         System.out.println(database);
         System.out.println(committed);
+    }
+
+    public void ensure_keys(String... keys) {
+        for (String key : keys) {
+            System.out.println(String.format("%s doesn't exist, creating", key));
+            ConcurrentHashMap<Integer, Integer> newdata = new ConcurrentHashMap<>();
+            database.put(key, newdata);
+        }
     }
 
     class Writehandle {
@@ -42,14 +51,16 @@ public class MVCC {
 
     public Writehandle intend_to_write(Transaction transaction, String key, Integer value) {
         if (transaction.getTimestamp() < timestamp_of_key(transaction, key)) {
+            System.out.println("Write failed");
             return null;
         }
-        if (!database.containsKey(key)) {
-            database.put(key, new HashMap<>());
-        }
+
         database.get(key).put(transaction.getTimestamp(), value);
+
+
         return new Writehandle(key);
     }
+
 
     private int timestamp_of_key(Transaction transaction, String key) {
         if (!database.containsKey(key)) {
@@ -66,7 +77,8 @@ public class MVCC {
     }
 
     public Integer read(String key, Transaction transaction) {
-        HashMap<Integer, Integer> values = database.get(key);
+        ConcurrentHashMap<Integer, Integer> values = database.get(key);
+        System.out.println(String.format("%d Values in database %s for key %s", transaction.getTimestamp(), values, key));
         ArrayList<Integer> versions = new ArrayList<>(values.keySet());
         versions.sort(new Comparator<Integer>() {
             @Override
