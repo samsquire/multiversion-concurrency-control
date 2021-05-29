@@ -11,6 +11,8 @@ public class ConcurrentWithdrawer {
     private Map<String, Integer> database = new HashMap<>();
     private int transactionCount = 0;
     private final List<Transaction> transactions = Collections.synchronizedList(new ArrayList<>());
+    private final List<Transaction> createdTransactions = Collections.synchronizedList(new ArrayList<>());
+    private Integer executor = null;
 
     public static void main(String[] args) {
         try {
@@ -20,6 +22,18 @@ public class ConcurrentWithdrawer {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    public synchronized boolean acquireExecutor(int id) {
+        if (executor == null) {
+            executor = id;
+            return true;
+        }
+        return false;
+    }
+
+    public synchronized void releaseExecutor() {
+        executor = null;
     }
 
     private static int getRandomNumberInRange(int min, int max) {
@@ -57,8 +71,7 @@ public class ConcurrentWithdrawer {
 
                         transaction.read("fromBalance", "fromAccountName", (context) -> {
                             int fromAccount = getRandomNumberInRange(0, 4);
-                            String fromAccountName = String.format("account%d", fromAccount);
-                            return fromAccountName;
+                            return String.format("account%d", fromAccount);
                         }).read("toBalance", "toAccountName", (context) -> {
                             int toAccount = getRandomNumberInRange(0, 4);
                             String toAccountName = String.format("account%d", toAccount);
@@ -104,8 +117,9 @@ public class ConcurrentWithdrawer {
             monies.add(foundMoney);
         }
 
-        for (Transaction t : transactions) {
+        for (Transaction t : createdTransactions) {
             assert t.timesRan == 1;
+            assert t.marked == true;
         }
 
         System.out.println("Totals while running");
@@ -133,6 +147,7 @@ public class ConcurrentWithdrawer {
             Transaction transaction = new Transaction(transactions, transactionCount, database);
             transactionCount = transactionCount + 1;
             this.transactions.add(transaction);
+            this.createdTransactions.add(transaction);
             return transaction;
         }
 
@@ -156,7 +171,7 @@ public class ConcurrentWithdrawer {
         private Set<Transaction> conflicts = new HashSet<>();
         private boolean completed;
         private boolean ran;
-        private boolean marked;
+        private boolean marked = false;
         private int timesRan = 0;
         private boolean processingConflicts;
         private Transaction parent;
@@ -175,7 +190,7 @@ public class ConcurrentWithdrawer {
                     output += ((WriteStep)step).key + " ";
                 }
                 if (step instanceof ReadStep) {
-                    output += ((ReadStep)step).key = " ";
+                    output += ((ReadStep)step).key + " ";
                 }
             }
             return output;
@@ -246,30 +261,25 @@ public class ConcurrentWithdrawer {
         }
 
         public void commit() {
-
-            boolean needsRunning = true;
-            completed = true;
-            int retryCount = 0;
             transactionStart = System.nanoTime();
-            boolean ran = false;
 
-            for (TransactionStep step : steps) {
-                step.resolve(transactionContext);
-            }
+            timesRan++;
+
+            completed = true;
 
             List<List<Transaction>> grouped;
             synchronized (transactions) {
                 grouped = groupify();
             }
-            int identity = id;
-            System.out.println(identity);
-            System.out.println(grouped.size());
+            int identity = transactions.size() - transactions.indexOf(this) - 1;
 
-            if (identity <= grouped.size() - 1) {
-                System.out.println("We're doing");
-                List<Transaction> currentGroup = grouped.get(identity);
+            boolean amTheExecutor = acquireExecutor(id);
+            if (amTheExecutor) {
+                System.out.println(String.format("%d is the executor", id));
+                List<Transaction> currentGroup = grouped.get(0);
 
                 for (Transaction transaction : currentGroup) {
+
                     for (TransactionStep step : transaction.steps) {
                         step.resolve(transaction.transactionContext);
                         step.run(transaction.transactionContext);
@@ -283,8 +293,9 @@ public class ConcurrentWithdrawer {
                         }
                     }
                     transactions.remove(transaction);
+                    transaction.marked = true;
                 }
-                System.out.println(currentGroup);
+                releaseExecutor();
             } else {
                 System.out.println("We don't have to do anything");
             }
@@ -306,6 +317,8 @@ public class ConcurrentWithdrawer {
             }
         }
 
+
+
         private List<List<Transaction>> groupify() {
             List<List<Transaction>> groups = new ArrayList<>();
             groups.add(new ArrayList<Transaction>());
@@ -317,7 +330,7 @@ public class ConcurrentWithdrawer {
 
             for (Transaction transaction : cloned.subList(1, cloned.size())) {
 
-
+                if (!transaction.completed) { continue; }
                 Set<String> conflictingKeys = new HashSet<>();
                 for (TransactionStep transactionStep : transaction.steps) {
                     if (transactionStep instanceof ReadStep) {
@@ -386,12 +399,12 @@ public class ConcurrentWithdrawer {
     private class ReadStep implements TransactionStep {
         private final String field;
         private final Function<TransactionContext, String> keyGetter;
-        private boolean activated;
-        private String key;
+        private boolean activated = false;
+        private String key = "";
         public long timestamp;
         Transaction transaction;
 
-        public ReadStep(Transaction transaction, String field, Function keyGetter) {
+        public ReadStep(Transaction transaction, String field, Function<TransactionContext, String> keyGetter) {
             this.transaction = transaction;
             this.field = field;
             this.keyGetter = keyGetter;
@@ -400,8 +413,9 @@ public class ConcurrentWithdrawer {
 
         public void resolve(TransactionContext context) {
             if (!activated) {
-                key = (String) this.keyGetter.apply(context);
+                key = this.keyGetter.apply(context);
             }
+
             activated = true;
         }
 
@@ -443,6 +457,7 @@ public class ConcurrentWithdrawer {
         public void write(WriteStep writeStep, String name, Integer newValue) {
             String key = lookupName(name);
             writeStep.key = key;
+            System.out.println(String.format("%s new value %d", key, newValue));
             context.put(key, newValue);
         }
 
