@@ -12,7 +12,8 @@ public class ConcurrentWithdrawer {
     private int transactionCount = 0;
     private final List<Transaction> transactions = Collections.synchronizedList(new ArrayList<>());
     private final List<Transaction> createdTransactions = Collections.synchronizedList(new ArrayList<>());
-    private Integer executor = null;
+    private Integer executor1 = null;
+    private Integer executor2 = null;
 
     public static void main(String[] args) {
         try {
@@ -24,16 +25,27 @@ public class ConcurrentWithdrawer {
         }
     }
 
-    public synchronized boolean acquireExecutor(int id) {
-        if (executor == null) {
-            executor = id;
-            return true;
+    public synchronized int acquireExecutor(int id) {
+        if (executor1 == null) {
+            executor1 = id;
+            return 0;
         }
-        return false;
+        if (executor2 == null) {
+            executor2 = id;
+            return 1;
+        }
+        return -1;
     }
 
-    public synchronized void releaseExecutor() {
-        executor = null;
+    public synchronized void releaseExecutor(int id) {
+        if (executor1 == id) {
+            executor1 = null;
+            return;
+        }
+        if (executor2 == id) {
+            executor2 = null;
+        }
+        return;
     }
 
     private static int getRandomNumberInRange(int min, int max) {
@@ -271,12 +283,13 @@ public class ConcurrentWithdrawer {
             synchronized (transactions) {
                 grouped = groupify();
             }
-            int identity = transactions.size() - transactions.indexOf(this) - 1;
 
-            boolean amTheExecutor = acquireExecutor(id);
-            if (amTheExecutor) {
+
+            int executorNumber = acquireExecutor(id);
+            System.out.println(String.format("%d grouped size", grouped.size()));
+            if (executorNumber >= 0 && executorNumber < grouped.size()) {
                 System.out.println(String.format("%d is the executor", id));
-                List<Transaction> currentGroup = grouped.get(0);
+                List<Transaction> currentGroup = grouped.get(executorNumber);
 
                 for (Transaction transaction : currentGroup) {
 
@@ -295,7 +308,7 @@ public class ConcurrentWithdrawer {
                     transactions.remove(transaction);
                     transaction.marked = true;
                 }
-                releaseExecutor();
+                releaseExecutor(id);
             } else {
                 System.out.println("We don't have to do anything");
             }
@@ -326,7 +339,7 @@ public class ConcurrentWithdrawer {
             List<Transaction> cloned = new ArrayList<>(transactions);
 
             groups.get(0).add(cloned.get(0));
-            int currentGroupIndex = 0;
+
 
             for (Transaction transaction : cloned.subList(1, cloned.size())) {
 
@@ -340,7 +353,7 @@ public class ConcurrentWithdrawer {
                     }
                 }
                 // can we join the current group ?
-                List<Transaction> newGroup = null;
+                List<Transaction> newGroup;
                 newGroup = new ArrayList<Transaction>();
                 boolean inserted = false;
                 boolean mustAddToGroup = false;
@@ -363,6 +376,7 @@ public class ConcurrentWithdrawer {
                         }
                         if (!inserted && mustAddToGroup) {
                             additions.add(new MustAddToGroup(currentGroup, transaction));
+                            mustAddToGroup = false;
                             inserted = true;
                             break;
                         }
