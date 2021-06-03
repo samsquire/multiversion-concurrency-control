@@ -23,9 +23,10 @@ public class RaftDriver {
         tickAll();
         tickAll();
         tickAll();
+        tickAll();
         save("Hello world");
         tickAll();
-
+        save("Sam");
         tickAll();
         tickAll();
         tickAll();
