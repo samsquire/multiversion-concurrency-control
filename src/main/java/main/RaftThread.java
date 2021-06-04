@@ -14,7 +14,7 @@ public class RaftThread extends Thread {
 
     private RaftState state = Follower;
     private RaftThread currentLeader;
-    private boolean leader;
+    public boolean leader;
     private int electionTimeout;
     private int currentTerm;
     private int votedFor;
@@ -54,36 +54,52 @@ public class RaftThread extends Thread {
     }
 
     public void handleAllCommand(RaftDriver raftDriver) {
+
         while (inbox.size() > 0) {
             handleCommand(raftDriver);
         }
     }
 
     public void handleCommand(RaftDriver driver) {
+
         if (inbox.size() > 0) {
             RPCCommand command = inbox.get(0);
             inbox.remove(command);
+            if (command.getCurrentTerm() > currentTerm) {
+                leader = false;
+                state = Follower;
+                System.out.println(String.format("%d Stepping down", id));
+                currentTerm = command.getCurrentTerm();
+            } else if (command.getCurrentTerm() < currentTerm) {
+                System.out.println("Discarding old message");
+                return;
+            }
+
             if (command instanceof RequestVoteRPC) {
                 RequestVoteRPC voteRequest = (RequestVoteRPC) command;
-
+                System.out.println(String.format("%d %d Voting", tickCount, id));
                 if (log.size() == 0) {
                     this.log.add(new LogEntry(voteRequest.lastLogTerm, null));
                 }
 
-                if (voteRequest.lastLogIndex >= log.size() - 1 && voteRequest.lastLogTerm >= currentTerm) {
+                if (voteRequest.lastLogIndex >= log.size() - 1) {
                     // they win the vote
+                    System.out.println("They win the vote");
+                    votedFor = voteRequest.sender.id;
                     voteRequest.sender.reply(new RequestVoteRPCReply(this, currentTerm, true));
                 } else {
+                    System.out.println("They lose the vote");
                     voteRequest.sender.reply(new RequestVoteRPCReply(this, currentTerm, false));
                 }
             }
             if (command instanceof AppendEntriesRPC) {
                 electionTimeout = 0;
                 state = Follower;
+                leader = false;
 
                 AppendEntriesRPC appendEntries = (AppendEntriesRPC) command;
                 votedFor = appendEntries.getSender().id;
-                if (appendEntries.lastLogTerm < currentTerm) {
+                if (appendEntries.lastLogTerm != log.get(log.size() - 1).term) {
                     System.out.println("Failed to receive because last Log term < currentTerm");
                     appendEntries.sender.reply(new AppendEntriesRPCReply(this, currentTerm, false));
                     return;
@@ -97,10 +113,14 @@ public class RaftThread extends Thread {
                 System.out.println(String.format("%d Received %d items", id, appendEntries.logEntries.size()));
                 lastApplied = appendEntries.lastLogIndex;
                 log.addAll(appendEntries.logEntries);
-                if (appendEntries.logEntries.size() > 0 && appendEntries.leaderCommit > commitIndex) {
-                    int lastReceived = appendEntries.logEntries.size() - 1;
-                    LogEntry lastEntry = appendEntries.logEntries.get(lastReceived);
-                    commitIndex = min(appendEntries.leaderCommit, log.indexOf(lastEntry));
+                if (appendEntries.leaderCommit > commitIndex) {
+                    if (appendEntries.logEntries.size() == 0) {
+                        commitIndex = log.size() - 1;
+                    } else {
+                        int lastReceived = appendEntries.logEntries.size() - 1;
+                        LogEntry lastEntry = appendEntries.logEntries.get(lastReceived);
+                        commitIndex = min(appendEntries.leaderCommit, log.indexOf(lastEntry));
+                    }
                 }
                 appendEntries.sender.reply(new AppendEntriesRPCReply(this, currentTerm, true));
 
@@ -111,15 +131,30 @@ public class RaftThread extends Thread {
     }
 
     private void reply(RPCCommand command) {
+
+        if (command.getCurrentTerm() > currentTerm) {
+            leader = false;
+            state = Follower;
+            System.out.println(String.format("%d Stepping down", id));
+            currentTerm = command.getCurrentTerm();
+        } else if (command.getCurrentTerm() < currentTerm) {
+            System.out.println("Discarding old reply");
+            return;
+        }
         if (command instanceof AppendEntriesRPCReply) {
             AppendEntriesRPCReply reply = (AppendEntriesRPCReply) command;
             if (reply.success) {
                 System.out.println("Leader received reply");
-                AppendEntriesRPC lastSentAppendEntries = lastAppendEntriesSent.get(command.getSender());
+                AppendEntriesRPC lastSentAppendEntries = lastAppendEntriesSent.get(reply.getSender());
                 assert lastSentAppendEntries != null;
-                nextIndex.put(command.getSender().id, lastSentAppendEntries.leaderCommit + 1);
-                matchIndex.put(command.getSender().id, lastSentAppendEntries.leaderCommit);
-                lastAppendEntriesSent.put(command.getSender(), null);
+                assert command.getSender() != null;
+                assert nextIndex != null;
+                assert matchIndex != null;
+                System.out.println(String.format("%d is the leaderCommit", lastSentAppendEntries.leaderCommit));
+
+                nextIndex.put(reply.getSender().id, lastSentAppendEntries.leaderCommit + 1);
+                matchIndex.put(reply.getSender().id, lastSentAppendEntries.leaderCommit);
+                lastAppendEntriesSent.put(lastSentAppendEntries.getSender(), null);
 
             } else {
                 System.out.println("ERROR");
@@ -129,8 +164,10 @@ public class RaftThread extends Thread {
             RequestVoteRPCReply reply = (RequestVoteRPCReply) command;
             if (reply.voteGranted && votesExpected > 0) {
                 votes++;
-                if (votes > votesExpected/2) {
+                System.out.println("Received vote");
+                if (votes >= votesExpected/2) {
                     votesExpected = 0;
+                    votes = 0;
                     System.out.println(String.format("%d expects to be the leader now", id));
 
                         if (log.size() == 0) {
@@ -141,12 +178,12 @@ public class RaftThread extends Thread {
                         for (RaftThread thread : servers) {
                             if (thread == this) { continue; }
                             // initialize index to send for each server
-                            if (!nextIndex.containsKey(thread.id)) {
-                                nextIndex.put(thread.id, 1);
-                            }
-                            if (!matchIndex.containsKey(thread.id)) {
-                                matchIndex.put(thread.id, 0);
-                            }
+
+                            nextIndex.put(thread.id, commitIndex + 1);
+
+
+                            matchIndex.put(thread.id, commitIndex);
+
                             System.out.println("Initialized server on leader");
                             // send heart beat to end election
                             AppendEntriesRPC firstAppendEntries = new AppendEntriesRPC(this, currentTerm, id,
@@ -170,7 +207,7 @@ public class RaftThread extends Thread {
 
     public void tick() {
         tickCount++;
-
+        if (down) { return; }
 
 
         if ((state == Follower || state == Candidate) && electionTimeout <= electionThreshold) {
@@ -183,7 +220,7 @@ public class RaftThread extends Thread {
                 commitIndex = 0;
             }
 
-            votesExpected = send(new RequestVoteRPC(this, currentTerm, id, log.size() - 1, log.get(log.size() - 1).term));
+            votesExpected = send(new RequestVoteRPC(this, currentTerm, id, commitIndex, log.get(log.size() - 1).term));
 
             electionTimeout = 0;
             return;
@@ -192,8 +229,10 @@ public class RaftThread extends Thread {
             System.out.println("Sending heartbeat");
 
             updateServers();
+        } else {
+            electionTimeout--;
         }
-        electionTimeout--;
+
 
     }
 
@@ -202,6 +241,7 @@ public class RaftThread extends Thread {
         if (!leader) {
             return votedFor;
         } else {
+            System.out.println(String.format("%d Leader saved %s", id, newState));
             log.add(new LogEntry(currentTerm, newState));
 //            for (RaftThread thread : servers) {
 //                if (thread == this) { continue; }
@@ -218,10 +258,10 @@ public class RaftThread extends Thread {
             if (server == this) { continue; }
             Integer nextIndex = this.nextIndex.get(server.id);
             Integer knownMatchIndex = matchIndex.get(server.id);
-            System.out.println(nextIndex);
+            System.out.println(String.format("Next index is %d", nextIndex));
             int lastLogterm = log.get(knownMatchIndex).term;
 
-            List<LogEntry> sentLogEntries = log.subList(nextIndex, log.size());
+            List<LogEntry> sentLogEntries = new ArrayList<>(log.subList(nextIndex, log.size()));
 
             AppendEntriesRPC command = new AppendEntriesRPC(this,
                     currentTerm, id,
@@ -239,5 +279,13 @@ public class RaftThread extends Thread {
         for (LogEntry logEntry : log) {
             System.out.println(String.format("%d:%s:%d", id, logEntry.log, logEntry.term));
         }
+    }
+
+    public void markDown() {
+        down = true;
+    }
+
+    public void markUp() {
+        down = false;
     }
 }

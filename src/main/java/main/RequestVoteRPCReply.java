@@ -16,4 +16,9 @@ public class RequestVoteRPCReply implements RPCCommand {
     public RaftThread getSender() {
         return sender;
     }
+
+    @Override
+    public int getCurrentTerm() {
+        return currentTerm;
+    }
 }

@@ -21,4 +21,9 @@ public class RequestVoteRPC implements RPCCommand {
         return sender;
     }
 
+    @Override
+    public int getCurrentTerm() {
+        return currentTerm;
+    }
+
 }

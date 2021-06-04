@@ -20,6 +20,7 @@ public class RaftDriver {
             servers.add(raftThread);
             ids++;
         }
+        // give some time for a leader to be elected (maximum 3 ticks)
         tickAll();
         tickAll();
         tickAll();
@@ -30,9 +31,42 @@ public class RaftDriver {
         tickAll();
         tickAll();
         tickAll();
+        RaftThread thread = pullLeaderDown();
+        tickAll();
+        tickAll();
+        tickAll();
+        tickAll();
+        assert getLeaders().size() == 1;
+        save("new leader");
+        thread.markUp();
+        assert getLeaders().size() == 1;
+        tickAll();
+        tickAll();
+        tickAll();
+        assert getLeaders().size() == 1;
         printLog();
 
 
+    }
+
+    private RaftThread pullLeaderDown() {
+        for (RaftThread server : servers) {
+            if (server.leader) {
+                server.markDown();
+                return server;
+            }
+        }
+        return null;
+    }
+
+    private List<RaftThread> getLeaders() {
+        List<RaftThread> leaders = new ArrayList<>();
+        for (RaftThread thread : servers) {
+            if (thread.leader) {
+                leaders.add(thread);
+            }
+        }
+        return leaders;
     }
 
     private void printLog() {

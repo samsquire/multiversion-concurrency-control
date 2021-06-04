@@ -26,4 +26,9 @@ public class AppendEntriesRPC implements RPCCommand {
     public RaftThread getSender() {
         return sender;
     }
+
+    @Override
+    public int getCurrentTerm() {
+        return currentTerm;
+    }
 }
