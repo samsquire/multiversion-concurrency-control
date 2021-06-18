@@ -74,6 +74,28 @@ public class MVCC {
         return new Writehandle(key);
     }
 
+
+    private int timestamp_of_key(Transaction transaction, String key) {
+        if (!database.containsKey(key)) {
+            return transaction.getTimestamp();
+        }
+
+        ArrayList<Integer> versions = new ArrayList<>(database.get(key).keySet());
+        versions.sort(new Comparator<Integer>() {
+            @Override
+            public int compare(Integer o1, Integer o2) {
+                return o2 - o1;
+            }
+        });
+        if (versions.size() > 0) {
+
+            return versions.get(0);
+        } else {
+            return transaction.getTimestamp();
+        }
+
+    }
+
     public Integer read(Transaction transaction, String key) {
         ConcurrentHashMap<Integer, Integer> values = database.get(key);
         System.out.println(String.format("%d Values in database %s for key %s committed %d", transaction.getTimestamp(), values, key, committed.get(key)));
@@ -112,7 +134,10 @@ public class MVCC {
                 restart = true;
                 conflictType = "read";
             }
-
+            if (transaction.getTimestamp() < timestamp_of_key(transaction, writehandle.key)) {
+                restart = true;
+                conflictType = "write";
+            }
         }
         if (restart) {
             System.out.println(String.format("%d %s Conflict. Restarting transaction", transaction.getTimestamp(), conflictType));
