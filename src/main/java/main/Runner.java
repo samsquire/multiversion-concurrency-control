@@ -28,10 +28,13 @@ public class Runner {
         mvcc.dump();
         System.out.println(A);
         System.out.println(B);
-        System.out.println(mvcc.getLatest("A"));
+        System.out.println(mvcc.getHighest("A"));
 
-        System.out.println(mvcc.getLatest("B"));
+        System.out.println(mvcc.getHighest("B"));
 
+
+        mvcc.printDuplicates("A");
+        mvcc.printDuplicates("B");
         assert mvcc.getLatest("A") == 110;
         assert mvcc.getLatest("B") == 125;
 
