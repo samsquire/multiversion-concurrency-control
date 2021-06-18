@@ -25,19 +25,19 @@ class TransactionA extends Thread implements MVCC.Transaction {
 
                 System.out.println(String.format("Was previously aborted %d", timestamp));
                 MVCC.Writehandle writeA = mvcc.intend_to_write(this,"A", 5);
-                writehandles.add(writeA);
+
                 if (writeA == null) {
                     break;
                 }
                 MVCC.Writehandle writeB = mvcc.intend_to_write(this,"B", 5);
-                writehandles.add(writeB);
+
                 if (writeB == null) {
                     break;
                 }
                 int A = mvcc.read(this, "A");
                 int B = mvcc.read(this, "B");
                 MVCC.Writehandle writeC = mvcc.intend_to_write(this,"B", A + B);
-                // writehandles.add(writeC);
+
                 if (writeC == null) {
                     break;
                 }
@@ -69,5 +69,9 @@ class TransactionA extends Thread implements MVCC.Transaction {
     @Override
     public void clear() {
         writehandles.clear();
+    }
+    @Override
+    public void addWrite(MVCC.Writehandle writehandle) {
+        writehandles.add(writehandle);
     }
 }

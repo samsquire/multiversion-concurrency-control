@@ -9,13 +9,16 @@ public class MVCC {
     private ConcurrentHashMap<String, ConcurrentHashMap<Integer, Integer>> database;
     private ConcurrentHashMap<String, Integer> committed;
     private int counter;
+    private boolean earlyAborts;
+    private int lastCommit;
 
 
-    public MVCC() {
+    public MVCC(boolean earlyAborts) {
         this.database = new ConcurrentHashMap<>();
         this.committed = new ConcurrentHashMap<>();
         this.rts = new ConcurrentHashMap<>();
         this.counter = 0;
+        this.lastCommit = 0;
     }
 
     public int issue() {
@@ -40,6 +43,21 @@ public class MVCC {
         }
     }
 
+    public Integer getLatest(String key) {
+        return database.get(key).get(committed.get(key));
+    }
+
+    public Integer getHighest(String key) {
+        ArrayList<Integer> versions = new ArrayList<>(database.get(key).keySet());
+        versions.sort(new Comparator<Integer>() {
+            @Override
+            public int compare(Integer o1, Integer o2) {
+                return o2 - o1;
+            }
+        });
+        return database.get(key).get(versions.get(0));
+    }
+
     class Writehandle {
         String key;
 
@@ -56,22 +74,35 @@ public class MVCC {
         void setAborted(boolean aborted);
 
         void clear();
+
+        void addWrite(Writehandle writehandle);
     }
 
     public Writehandle intend_to_write(Transaction transaction, String key, Integer value) {
-//        if (transaction.getTimestamp() < timestamp_of_key(transaction, key)) {
-//            System.out.println("Write failed");
-//            for (Writehandle writeHandle : transaction.getWritehandles()) {
-//                database.get(writeHandle.key).remove(transaction.getTimestamp());
-//            }
-//            transaction.clear();
-//            return null;
-//        }
+        String conflictType = "";
+        boolean restart = false;
+        if (earlyAborts) {
+            if (rts.containsKey(key) && rts.get(key) > transaction.getTimestamp()) {
+                restart = true;
+                conflictType = "read";
+            }
+            if (transaction.getTimestamp() < timestamp_of_key(transaction, key)) {
+                restart = true;
+                conflictType = "write";
+            }
+            if (restart) {
+                System.out.println(String.format("%s failed - early abort", conflictType));
+                return null;
+            }
+        }
+
 
         database.get(key).put(transaction.getTimestamp(), value);
 
 
-        return new Writehandle(key);
+        Writehandle writehandle = new Writehandle(key);
+        transaction.addWrite(writehandle);
+        return writehandle;
     }
 
 
@@ -88,8 +119,16 @@ public class MVCC {
             }
         });
         if (versions.size() > 0) {
+            if (!committed.containsKey(key)) {
+                return transaction.getTimestamp();
+            } else {
+                if (lastCommit > committed.get(key)) {
+                    return lastCommit;
+                } else {
+                    return committed.get(key);
+                }
+            }
 
-            return versions.get(0);
         } else {
             return transaction.getTimestamp();
         }
@@ -113,9 +152,17 @@ public class MVCC {
 
         for (Integer version : versions) {
             if (version <= transaction.getTimestamp()) {
-                if (version <= committed.get(key)) {
+                if (version.equals(committed.get(key))) {
                     Integer read = values.get(version);
-                    this.rts.put(key, transaction.getTimestamp());
+
+                    if (rts.containsKey(key) && rts.get(key) > transaction.getTimestamp()) {
+                        System.out.println("Someone beat us");
+                        return null;
+                    }
+                    rts.put(key, transaction.getTimestamp());
+                    if (read == null) {
+                        System.out.println("READ WAS NULL");
+                    }
                     System.out.println(String.format("%d read %d", transaction.getTimestamp(), read));
                     return read;
                 }
@@ -134,11 +181,12 @@ public class MVCC {
                 restart = true;
                 conflictType = "read";
             }
-            if (transaction.getTimestamp() < timestamp_of_key(transaction, writehandle.key)) {
-                restart = true;
-                conflictType = "write";
-            }
+//            if (transaction.getTimestamp() < timestamp_of_key(transaction, writehandle.key)) {
+//                restart = true;
+//                conflictType = "write";
+//            }
         }
+
         if (restart) {
             System.out.println(String.format("%d %s Conflict. Restarting transaction", transaction.getTimestamp(), conflictType));
             transaction.setAborted(true);
@@ -149,11 +197,9 @@ public class MVCC {
             transaction.clear();
         } else {
             transaction.setAborted(false);
-
+            lastCommit = transaction.getTimestamp();
             for (Writehandle writehandle : transaction.getWritehandles()) {
-
                 committed.put(writehandle.key, transaction.getTimestamp());
-
             }
         }
         System.out.println(String.format("%d committed", transaction.getTimestamp()));
