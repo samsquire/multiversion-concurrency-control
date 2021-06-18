@@ -4,8 +4,10 @@ public class AppendEntriesRPCReply implements RPCCommand {
     private final RaftThread sender;
     private final int currentTerm;
     public final boolean success;
+    private int timestamp;
 
-    public AppendEntriesRPCReply(RaftThread sender, int currentTerm, boolean success) {
+    public AppendEntriesRPCReply(int timestamp, RaftThread sender, int currentTerm, boolean success) {
+        this.timestamp = timestamp;
         this.sender = sender;
         this.currentTerm = currentTerm;
         this.success = success;
@@ -19,5 +21,10 @@ public class AppendEntriesRPCReply implements RPCCommand {
     @Override
     public int getCurrentTerm() {
         return currentTerm;
+    }
+
+    @Override
+    public int getTimestamp() {
+        return timestamp;
     }
 }

@@ -67,9 +67,15 @@ public class MVCC {
             return transaction.getTimestamp();
         }
 
-        String latest_key = String.format("%s", key);
-        if (committed.containsKey(latest_key)) {
-            return committed.get(latest_key);
+        ArrayList<Integer> versions = Collections.list(database.get(key).keys());
+        versions.sort(new Comparator<Integer>() {
+            @Override
+            public int compare(Integer o1, Integer o2) {
+                return o2 - o1;
+            }
+        });
+        if (versions.size() > 0) {
+            return versions.get(0);
         } else {
             return transaction.getTimestamp();
         }
@@ -96,20 +102,23 @@ public class MVCC {
     }
 
     public void commit(Transaction transaction) {
-        boolean restart = false;
-        for (Writehandle writehandle : transaction.getWritehandles()) {
-            if (transaction.getTimestamp() < timestamp_of_key(transaction, writehandle.key)) {
-                restart = true;
-            }
-        }
-        if (restart) {
-            transaction.setAborted(true);
-        } else {
-            transaction.setAborted(false);
+
+            boolean restart = false;
             for (Writehandle writehandle : transaction.getWritehandles()) {
-                committed.put(writehandle.key, transaction.getTimestamp());
+                if (transaction.getTimestamp() < timestamp_of_key(transaction, writehandle.key)) {
+                    restart = true;
+                }
             }
-        }
+            if (restart) {
+                transaction.setAborted(true);
+                for (Writehandle writeHandle : transaction.getWritehandles()) {
+                    database.get(writeHandle.key).remove(transaction.getTimestamp());
+                }
+            } else {
+                transaction.setAborted(false);
+
+            }
+
     }
 
 

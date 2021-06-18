@@ -36,22 +36,28 @@ public class RaftDriver {
         tickAll();
         tickAll();
         tickAll();
-        assert getLeaders().size() == 1;
+
         save("new leader");
-        thread.markUp();
-        assert getLeaders().size() == 1;
+        markUp(thread);
+
         tickAll();
         tickAll();
         tickAll();
-        assert getLeaders().size() == 1;
+
         printLog();
 
 
     }
 
+    public void markUp(RaftThread server) {
+        System.out.println(String.format("%d going back up", server.id));
+        server.markUp();
+    }
+
     private RaftThread pullLeaderDown() {
         for (RaftThread server : servers) {
             if (server.leader) {
+                System.out.println(String.format("Pulling %d down", server.id));
                 server.markDown();
                 return server;
             }
@@ -76,7 +82,13 @@ public class RaftDriver {
     }
 
     private void save(String state) {
-        Integer leaderIndex = servers.get(0).save(state);
+        Integer leaderIndex = null;
+        for (RaftThread thread : servers) {
+            if (!thread.down) {
+                leaderIndex = thread.save(state);
+                break;
+            }
+        }
         if (leaderIndex != null) {
             servers.get(leaderIndex).save(state);
             for (RaftThread thread : servers) {
@@ -93,6 +105,7 @@ public class RaftDriver {
             handleAllMessages();
             thread.tick();
             handleAllMessages();
+            assert getLeaders().size() == 1;
         }
     }
 

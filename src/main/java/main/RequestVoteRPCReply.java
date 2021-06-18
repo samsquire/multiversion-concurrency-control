@@ -1,11 +1,13 @@
 package main;
 
 public class RequestVoteRPCReply implements RPCCommand {
+    private int timestamp;
     private RaftThread sender;
     private final int currentTerm;
     public final boolean voteGranted;
 
-    public RequestVoteRPCReply(RaftThread sender, int currentTerm, boolean voteGranted) {
+    public RequestVoteRPCReply(int timestamp, RaftThread sender, int currentTerm, boolean voteGranted) {
+        this.timestamp = timestamp;
         this.sender = sender;
         this.currentTerm = currentTerm;
         this.voteGranted = voteGranted;
@@ -20,5 +22,10 @@ public class RequestVoteRPCReply implements RPCCommand {
     @Override
     public int getCurrentTerm() {
         return currentTerm;
+    }
+
+    @Override
+    public int getTimestamp() {
+        return timestamp;
     }
 }

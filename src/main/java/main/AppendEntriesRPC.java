@@ -11,8 +11,9 @@ public class AppendEntriesRPC implements RPCCommand {
     public final int lastLogTerm;
     public final List<LogEntry> logEntries;
     public final int leaderCommit;
+    private int timestamp;
 
-    public AppendEntriesRPC(RaftThread sender, int currentTerm, int leaderId, int lastLogIndex, int lastLogTerm, List<LogEntry> logEntries, int leaderCommit) {
+    public AppendEntriesRPC(int timestamp, RaftThread sender, int currentTerm, int leaderId, int lastLogIndex, int lastLogTerm, List<LogEntry> logEntries, int leaderCommit) {
         this.sender = sender;
         this.currentTerm = currentTerm;
         this.leaderId = leaderId;
@@ -20,6 +21,7 @@ public class AppendEntriesRPC implements RPCCommand {
         this.lastLogTerm = lastLogTerm;
         this.logEntries = logEntries;
         this.leaderCommit = leaderCommit;
+        this.timestamp = timestamp;
     }
 
     @Override
@@ -30,5 +32,10 @@ public class AppendEntriesRPC implements RPCCommand {
     @Override
     public int getCurrentTerm() {
         return currentTerm;
+    }
+
+    @Override
+    public int getTimestamp() {
+        return timestamp;
     }
 }

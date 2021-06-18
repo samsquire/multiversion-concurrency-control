@@ -1,6 +1,7 @@
 package main;
 
 public class RequestVoteRPC implements RPCCommand {
+    private int timestamp;
     public final RaftThread sender;
     private final int currentTerm;
     private final int term;
@@ -8,7 +9,8 @@ public class RequestVoteRPC implements RPCCommand {
     public final int lastLogIndex;
     public final int lastLogTerm;
 
-    public RequestVoteRPC(RaftThread sender, int currentTerm, int candidateId, int lastLogIndex, int lastLogTerm) {
+    public RequestVoteRPC(int timestamp, RaftThread sender, int currentTerm, int candidateId, int lastLogIndex, int lastLogTerm) {
+        this.timestamp = timestamp;
         this.sender = sender;
         this.currentTerm = currentTerm;
         this.term = currentTerm;
@@ -24,6 +26,11 @@ public class RequestVoteRPC implements RPCCommand {
     @Override
     public int getCurrentTerm() {
         return currentTerm;
+    }
+
+    @Override
+    public int getTimestamp() {
+        return timestamp;
     }
 
 }
