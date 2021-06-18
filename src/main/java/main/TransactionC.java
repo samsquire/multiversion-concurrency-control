@@ -1,7 +1,5 @@
 package main;
 
-import main.MVCC;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,22 +22,23 @@ class TransactionC extends Thread implements MVCC.Transaction {
         while (aborted) {
             while (true) {
                 timestamp = mvcc.issue();
+
                 System.out.println(String.format("Was previously aborted %d", timestamp));
 
-                int A = mvcc.read("A", this);
-                int B = mvcc.read("B", this);
+                int A = mvcc.read(this, "A");
+                int B = mvcc.read(this, "B");
                 MVCC.Writehandle writeC = mvcc.intend_to_write(this,"A", A + 1);
+                writehandles.add(writeC);
                 if (writeC == null) {
                     break;
                 }
-                writehandles.add(writeC);
 
                 MVCC.Writehandle writeD = mvcc.intend_to_write(this,"B", B + 1);
+                writehandles.add(writeD);
                 if (writeD == null) {
                     break;
                 }
-                writehandles.add(writeC);
-                System.out.println(String.format("%d committing", timestamp));
+
                 mvcc.commit(this);
                 mvcc.dump();
                 break;
@@ -62,5 +61,10 @@ class TransactionC extends Thread implements MVCC.Transaction {
     @Override
     public void setAborted(boolean aborted) {
         this.aborted = aborted;
+    }
+
+    @Override
+    public void clear() {
+        writehandles.clear();
     }
 }

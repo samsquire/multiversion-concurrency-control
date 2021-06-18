@@ -29,23 +29,22 @@ class TransactionB extends Thread implements MVCC.Transaction {
                 timestamp = mvcc.issue();
                 System.out.println(String.format("Was previously aborted %d", timestamp));
                 MVCC.Writehandle writeA = mvcc.intend_to_write(this,"A", 10);
+                writehandles.add(writeA);
                 if (writeA == null) {
                     break;
                 }
-                writehandles.add(writeA);
                 MVCC.Writehandle writeB = mvcc.intend_to_write(this,"B", 15);
+                writehandles.add(writeB);
                 if (writeB == null) {
                     break;
                 }
-                writehandles.add(writeB);
-                int A = mvcc.read("A", this);
-                int b = mvcc.read("B", this);
+                int A = mvcc.read(this, "A");
+                int b = mvcc.read(this, "B");
                 MVCC.Writehandle writeC = mvcc.intend_to_write(this,"B", A + b);
+                // writehandles.add(writeC);
                 if (writeC == null) {
                     break;
                 }
-                writehandles.add(writeC);
-                System.out.println(String.format("%d committing", timestamp));
                 mvcc.commit(this);
                 mvcc.dump();
                 break;
@@ -63,5 +62,11 @@ class TransactionB extends Thread implements MVCC.Transaction {
     @Override
     public void setAborted(boolean aborted) {
         this.aborted = aborted;
+    }
+
+
+    @Override
+    public void clear() {
+        writehandles.clear();
     }
 }
