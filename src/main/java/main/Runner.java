@@ -5,14 +5,12 @@ import java.util.List;
 
 public class Runner {
     public static void main(String[] args) throws InterruptedException {
-        MVCC mvcc = new MVCC(true);
+        MVCC mvcc = new MVCC(false);
         mvcc.ensure_keys("A", "B");
         TransactionA transactionA = new TransactionA(mvcc);
-        TransactionB transactionB = new TransactionB(mvcc);
+
         transactionA.start();
         transactionA.join();
-        transactionB.start();
-        transactionB.join();
         int A = mvcc.getLatest("A");
         int B = mvcc.getLatest("B");
         List<TransactionC> transactions = new ArrayList<>();
@@ -35,8 +33,9 @@ public class Runner {
 
         mvcc.printDuplicates("A");
         mvcc.printDuplicates("B");
-        assert mvcc.getLatest("A") == 110;
-        assert mvcc.getLatest("B") == 125;
+        assert mvcc.getLatest("A") == 101;
+        assert mvcc.getLatest("B") == 102;
+        assert(mvcc.versionsInOrder("A"));
 
     }
 }

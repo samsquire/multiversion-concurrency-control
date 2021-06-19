@@ -1,11 +1,14 @@
 package main;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 class TransactionC extends Thread implements MVCC.Transaction {
 
     private final MVCC mvcc;
+    private final ConcurrentHashMap<String, Integer> rts;
     private boolean aborted = true;
     private int timestamp;
     public List<MVCC.Writehandle> writehandles;
@@ -13,6 +16,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
     public TransactionC(MVCC mvcc) {
         this.mvcc = mvcc;
         this.writehandles = new ArrayList<>();
+        this.rts = new ConcurrentHashMap<String, Integer>();
 
     }
 
@@ -21,25 +25,25 @@ class TransactionC extends Thread implements MVCC.Transaction {
         super.run();
         while (aborted) {
             while (true) {
-                timestamp = mvcc.issue();
+                timestamp = mvcc.issue(this);
 
                 System.out.println(String.format("Was previously aborted %d", timestamp));
 
-                Integer A = mvcc.read(this, "A");
+                MVCC.Read A = mvcc.read(this, "A");
                 if (A == null) {
                     break;
                 }
-                Integer B = mvcc.read(this, "B");
+                MVCC.Read B = mvcc.read(this, "B");
                 if (B == null) {
                     break;
                 }
-                MVCC.Writehandle writeC = mvcc.intend_to_write(this,"A", A + 1);
+                MVCC.Writehandle writeC = mvcc.intend_to_write(this,"A", A.value + 1, A.timestamp);
 
                 if (writeC == null) {
                     break;
                 }
 
-                MVCC.Writehandle writeD = mvcc.intend_to_write(this,"B", B + 1);
+                MVCC.Writehandle writeD = mvcc.intend_to_write(this,"B", B.value + 1, B.timestamp);
 
                 if (writeD == null) {
                     break;
@@ -71,11 +75,22 @@ class TransactionC extends Thread implements MVCC.Transaction {
 
     @Override
     public void clear() {
+        rts.clear();
         writehandles.clear();
     }
 
     @Override
     public void addWrite(MVCC.Writehandle writehandle) {
         writehandles.add(writehandle);
+    }
+
+
+    @Override
+    public Integer getRts(String key) {
+        return rts.get(key);
+    }
+    @Override
+    public void setRts(String key, Integer value) {
+        rts.put(key, value);
     }
 }
