@@ -79,13 +79,4 @@ class TransactionA extends Thread implements MVCC.Transaction {
         writehandles.add(writehandle);
     }
 
-    @Override
-    public Integer getRts(String key) {
-        return rts.get(key);
-    }
-
-    @Override
-    public void setRts(String key, Integer value) {
-        rts.put(key, value);
-    }
 }

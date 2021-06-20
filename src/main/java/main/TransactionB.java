@@ -79,12 +79,4 @@ class TransactionB extends Thread implements MVCC.Transaction {
     }
 
 
-    @Override
-    public Integer getRts(String key) {
-        return rts.get(key);
-    }
-    @Override
-    public void setRts(String key, Integer value) {
-        rts.put(key, value);
-    }
 }

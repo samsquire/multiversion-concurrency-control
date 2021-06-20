@@ -112,9 +112,6 @@ public class MVCC {
 
         void addWrite(Writehandle writehandle);
 
-        Integer getRts(String key);
-
-        void setRts(String key, Integer value);
     }
 
     public Writehandle intend_to_write(Transaction transaction, String key, Integer value, Integer timestamp) {
@@ -164,27 +161,28 @@ public class MVCC {
 
         for (Integer version : versions) {
             if (version <= transaction.getTimestamp()) {
-                Integer timestamp = committed.get(key);
-                if (version.equals(timestamp)) {
-                    Integer read = values.get(version);
+                if (version <= lastCommit) {
+                    Integer timestamp = committed.get(key);
+                    if (version.equals(timestamp)) {
+                        Integer read = values.get(version);
 
-                    if (rts.containsKey(key) && rts.get(key) > transaction.getTimestamp()) {
-                        System.out.println(String.format("%d RTS ahead", transaction.getTimestamp()));
-                        return null;
-                    }
+                        if (rts.containsKey(key) && rts.get(key) > transaction.getTimestamp()) {
+                            System.out.println(String.format("%d RTS ahead", transaction.getTimestamp()));
+                            return null;
+                        }
 
-                    if (lastCommit > timestamp) {
-                        System.out.println("Race ahead");
-                        return null;
-                    }
-                    rts.put(key, transaction.getTimestamp());
-                    transaction.setRts(key, transaction.getTimestamp());
+                        if (lastCommit > timestamp) {
+                            System.out.println("Race ahead");
+                            return null;
+                        }
+                        rts.put(key, transaction.getTimestamp());
 
-                    System.out.println(String.format("%d %s read %d", transaction.getTimestamp(), key, read));
-                    if (read == null) {
-                        System.out.println("ERROR");
+                        System.out.println(String.format("%d %s read %d", transaction.getTimestamp(), key, read));
+                        if (read == null) {
+                            System.out.println("ERROR");
+                        }
+                        return new Read(read, timestamp);
                     }
-                    return new Read(read, timestamp);
                 }
             }
         }
@@ -227,7 +225,7 @@ public class MVCC {
 //
 //        }
         for (Writehandle writehandle : transaction.getWritehandles()) {
-            if (rts.containsKey(writehandle.key) && rts.get(writehandle.key) > transaction.getRts(writehandle.key)) {
+            if (rts.containsKey(writehandle.key) && rts.get(writehandle.key) > transaction.getTimestamp()) {
                 restart = true;
                 conflictType = "read";
             }
@@ -250,13 +248,13 @@ public class MVCC {
 
             transaction.setAborted(false);
 
-            lastCommit = transaction.getTimestamp();
+
             for (Writehandle writehandle : transaction.getWritehandles()) {
                 committed.put(writehandle.key, transaction.getTimestamp());
                 System.out.println(String.format("%d %d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(writehandle.key).get(transaction.getTimestamp())));
                 wts.put(writehandle.key, transaction.getTimestamp());
             }
-
+            lastCommit = transaction.getTimestamp();
             System.out.println(String.format("%d won committed", transaction.getTimestamp()));
         }
 
