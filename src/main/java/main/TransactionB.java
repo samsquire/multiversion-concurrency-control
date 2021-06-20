@@ -11,6 +11,7 @@ class TransactionB extends Thread implements MVCC.Transaction {
     private boolean aborted = true;
     private int timestamp;
     public List<MVCC.Writehandle> writehandles;
+    private MVCC.Transaction challenger;
 
     @Override
     public List<MVCC.Writehandle> getWritehandles() {
@@ -83,4 +84,13 @@ class TransactionB extends Thread implements MVCC.Transaction {
         return aborted;
     }
 
+    @Override
+    public void setChallenger(MVCC.Transaction transaction) {
+        this.challenger = transaction;
+    }
+
+    @Override
+    public MVCC.Transaction getChallenger() {
+        return challenger;
+    }
 }
