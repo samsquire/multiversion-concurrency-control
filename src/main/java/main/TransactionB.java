@@ -78,5 +78,9 @@ class TransactionB extends Thread implements MVCC.Transaction {
         writehandles.add(writehandle);
     }
 
+    @Override
+    public boolean getAborted() {
+        return aborted;
+    }
 
 }

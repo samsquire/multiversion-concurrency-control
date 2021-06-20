@@ -14,7 +14,7 @@ public class MVCC {
     private boolean earlyAborts;
     private int lastCommit;
     private Set<Transaction> transactions;
-    private HashMap<String, PriorityBlockingQueue<Transaction>> pq;
+    private HashMap<String, Transaction> pq;
 
 
     public MVCC(boolean earlyAborts) {
@@ -26,7 +26,7 @@ public class MVCC {
         this.transactions = new HashSet<>();
         this.counter = 0;
         this.lastCommit = 0;
-        this.pq = new HashMap<String, PriorityBlockingQueue<Transaction>>();
+        this.pq = new HashMap<String, Transaction>();
     }
 
     public int issue(Transaction transaction) {
@@ -49,12 +49,7 @@ public class MVCC {
             System.out.println(String.format("%s doesn't exist, creating", key));
             ConcurrentHashMap<Integer, Integer> newdata = new ConcurrentHashMap<>();
             database.put(key, newdata);
-            pq.put(key, new PriorityBlockingQueue<Transaction>(100, new Comparator<Transaction>() {
-                @Override
-                public int compare(Transaction o1, Transaction o2) {
-                    return o1.getTimestamp() - o2.getTimestamp();
-                }
-            }));
+
 
         }
     }
@@ -122,6 +117,7 @@ public class MVCC {
 
         void addWrite(Writehandle writehandle);
 
+        boolean getAborted();
     }
 
     public Writehandle intend_to_write(Transaction transaction, String key, Integer value, Integer timestamp) {
@@ -176,17 +172,19 @@ public class MVCC {
                     if (version.equals(timestamp)) {
                         Integer read = values.get(version);
 
-                        PriorityBlockingQueue<Transaction> transactions = pq.get(key);
-                        if (!transactions.contains(transaction)) {
-                            transactions.add(transaction);
+
+                        Transaction peek = pq.get(key);
+                        if (peek != null && transaction.getTimestamp() > peek.getTimestamp()) {
+                            System.out.println(String.format("%d %d should win", transaction.getTimestamp(), peek.getTimestamp()));
+
+                            return null;
                         }
-                        if (transactions.peek() != transaction) {
-                            System.out.println(String.format("%d should win", transactions.peek().getTimestamp()));
-                            transactions.remove(transaction);
+                        if (peek != null && peek.getAborted()) {
+                            // wait for child to finish
                             return null;
                         }
 
-
+                        pq.put(key, transaction);
                         rts.put(key, transaction.getTimestamp());
 
                         System.out.println(String.format("%d %s read %d", transaction.getTimestamp(), key, read));
@@ -239,13 +237,15 @@ public class MVCC {
 //        }
 
         for (Writehandle writehandle : transaction.getWritehandles()) {
-            PriorityBlockingQueue<Transaction> transactions = pq.get(writehandle.key);
-            if (transactions.peek() != null && transactions.peek() != transaction) {
-                if (transactions.peek() != null) {
-                    System.out.println(String.format("%d wins against %d", transactions.peek().getTimestamp(), transaction.getTimestamp()));
-                }
+            Transaction peek = pq.get(writehandle.key);
+
+            if (peek != null && peek.getTimestamp() < transaction.getTimestamp()) {
+                System.out.println(String.format("%d wins against %d", peek.getTimestamp(), transaction.getTimestamp()));
                 restart = true;
             }
+//            if (rts.containsKey(writehandle.key) && rts.get(writehandle.key) > transaction.getTimestamp()) {
+//                restart = true;
+//            }
             if (committed.containsKey(writehandle.key) && writehandle.timestamp != null && !committed.get(writehandle.key).equals(writehandle.timestamp)) {
                 restart = true;
                 conflictType = "commit";
@@ -258,7 +258,7 @@ public class MVCC {
             transaction.setAborted(true);
 
             for (Writehandle writehandle : transaction.getWritehandles()) {
-                pq.get(writehandle.key).remove(transaction);
+                pq.remove(writehandle.key);
                 database.get(writehandle.key).remove(transaction.getTimestamp());
             }
             transaction.clear();
@@ -268,10 +268,10 @@ public class MVCC {
 
 
             for (Writehandle writehandle : transaction.getWritehandles()) {
-                pq.get(writehandle.key).remove(transaction);
                 committed.put(writehandle.key, transaction.getTimestamp());
                 System.out.println(String.format("%d %d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(writehandle.key).get(transaction.getTimestamp())));
                 wts.put(writehandle.key, transaction.getTimestamp());
+                pq.remove(writehandle.key);
             }
             lastCommit = transaction.getTimestamp();
             System.out.println(String.format("%d won committed", transaction.getTimestamp()));
