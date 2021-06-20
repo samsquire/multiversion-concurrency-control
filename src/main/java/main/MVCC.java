@@ -269,4 +269,15 @@ public class MVCC {
             }
         }
     }
+
+    public Integer getHighestVersion(String key) {
+        ArrayList<Integer> list = Collections.list(database.get(key).keys());
+        list.sort(new Comparator<Integer>() {
+            @Override
+            public int compare(Integer o1, Integer o2) {
+                return o2 - o1;
+            }
+        });
+        return list.get(0);
+    }
 }

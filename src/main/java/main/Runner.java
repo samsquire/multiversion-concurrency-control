@@ -36,6 +36,7 @@ public class Runner {
         assert mvcc.getLatest("A") == 101;
         assert mvcc.getLatest("B") == 102;
         assert(mvcc.versionsInOrder("A"));
+        System.out.println(mvcc.getHighestVersion("A"));
 
     }
 }
