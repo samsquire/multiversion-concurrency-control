@@ -11,8 +11,7 @@ public class MVCC {
     private ConcurrentHashMap<String, Integer> committed;
     private int counter;
     private boolean earlyAborts;
-    private int lastCommit;
-    private Set<Transaction> transactions;
+    private volatile int lastCommit;
     private ConcurrentHashMap<String, Transaction> rts;
     private ConcurrentHashMap<String, Integer> wts;
 
@@ -22,7 +21,6 @@ public class MVCC {
         this.database = new ConcurrentHashMap<>();
         this.committed = new ConcurrentHashMap<>();
 
-        this.transactions = new HashSet<>();
         this.counter = 0;
         this.lastCommit = 0;
         this.rts = new ConcurrentHashMap<String, Transaction>();
@@ -33,7 +31,6 @@ public class MVCC {
         synchronized (database) {
             int token = this.counter;
             this.counter = this.counter + 1;
-            this.transactions.add(transaction);
 
             return token;
         }
@@ -149,6 +146,7 @@ public class MVCC {
 
     public Read read(Transaction transaction, String key) {
         ConcurrentHashMap<Integer, Integer> values = database.get(key);
+        Integer lastCommitted = committed.get(key);
 
         // System.out.println(String.format("%d Values in database for key %s %s  committed %d", transaction.getTimestamp(), key, values, committed.get(key)));
         ArrayList<Integer> versions = new ArrayList<>(values.keySet());
@@ -163,12 +161,11 @@ public class MVCC {
         if (values.containsKey(transaction.getTimestamp())) {
             return new Read(values.get(transaction.getTimestamp()), transaction.getTimestamp());
         }
-        System.out.println(versions.get(0));
         for (Integer version : versions) {
+            System.out.println(String.format("%d Inspecting version %d", transaction.getTimestamp(), version));
             if (version <= transaction.getTimestamp()) {
-                if (version <= lastCommit) {
-                    Integer timestamp = committed.get(key);
-                    if (version.equals(timestamp)) {
+
+                    if (version >= lastCommit && version <= lastCommitted) {
                         Integer read = values.get(version);
 
 
@@ -179,19 +176,23 @@ public class MVCC {
                             return null;
                         }
 
-                        rts.put(key, transaction);
-                        int peekTimestamp = 0;
-                        if (peek != null) {
-                            peekTimestamp = peek.getTimestamp();
-                        }
+                            rts.put(key, transaction);
+                            int peekTimestamp = 0;
+                            if (peek != null) {
+                                peekTimestamp = peek.getTimestamp();
+                            }
 
-                        System.out.println(String.format("%d %d read %s %d %d", System.nanoTime(), transaction.getTimestamp(), key, read, peekTimestamp));
-                        if (read == null) {
-                            System.out.println("ERROR");
-                        }
-                        return new Read(read, timestamp);
+                            System.out.println(String.format("%d %d read %s %d %d", System.nanoTime(), transaction.getTimestamp(), key, read, peekTimestamp));
+                            if (read == null) {
+                                System.out.println("ERROR");
+                            }
+                            return new Read(read, lastCommitted);
+                    } else {
+                        System.out.println(String.format("%d %d Version is not equal to committed %d", transaction.getTimestamp(), version, lastCommitted));
                     }
-                }
+
+            } else {
+                System.out.println("Ignoring newer value");
             }
         }
         System.out.println("No versions valid");
@@ -209,10 +210,13 @@ public class MVCC {
 
     public void commit(Transaction transaction) {
 
-        transactions.remove(transaction);
 
         boolean restart = false;
         String conflictType = "";
+
+       if (transaction.getTimestamp() < lastCommit) {
+           restart = true;
+       }
 
         for (Writehandle writehandle : transaction.getWritehandles()) {
             Transaction peek = rts.get(writehandle.key);
@@ -227,6 +231,8 @@ public class MVCC {
                 conflictType = "read";
                 break;
             }
+
+
 
             if (wts.containsKey(writehandle.key) && wts.get(writehandle.key) < transaction.getTimestamp()) {
                 restart = true;
@@ -243,7 +249,6 @@ public class MVCC {
         }
         if (restart) {
 
-            transactions.add(transaction);
             System.out.println(String.format("%d %s Conflict. Restarting transaction", transaction.getTimestamp(), conflictType));
             transaction.setAborted(true);
 
@@ -260,11 +265,11 @@ public class MVCC {
             for (Writehandle writehandle : transaction.getWritehandles()) {
                 committed.put(writehandle.key, transaction.getTimestamp());
                 System.out.println(String.format("%d %d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(writehandle.key).get(transaction.getTimestamp())));
-                rts.remove(writehandle.key);
+
             }
             lastCommit = transaction.getTimestamp();
-            // transaction.setTimestamp(Integer.MAX_VALUE);
             System.out.println(String.format("%d won committed", transaction.getTimestamp()));
+            transaction.setTimestamp(Integer.MAX_VALUE);
         }
 
     }
