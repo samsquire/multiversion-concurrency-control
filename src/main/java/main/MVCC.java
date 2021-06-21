@@ -119,10 +119,6 @@ public class MVCC {
 
         boolean getAborted();
 
-        void setChallenger(Transaction transaction);
-
-        Transaction getChallenger();
-
         void setTimestamp(int timestamp);
     }
 
@@ -182,28 +178,18 @@ public class MVCC {
 
                             return null;
                         }
-                        if (peek == null || transaction.getTimestamp() < peek.getTimestamp()) {
-//                        if (peek != null) {
-//                            // we are youngest but someone got here before us
-//                            peek.setChallenger(transaction);
-//                        }
-//                        if (peek != null && peek.getAborted()) {
-//                            // wait for child to finish
-//                            return null;
-//                        }
 
-                            rts.put(key, transaction);
-                            int peekTimestamp = 0;
-                            if (peek != null) {
-                                peekTimestamp = peek.getTimestamp();
-                            }
-
-                            System.out.println(String.format("%d %d read %s %d %d", System.nanoTime(), transaction.getTimestamp(), key, read, peekTimestamp));
-                            if (read == null) {
-                                System.out.println("ERROR");
-                            }
-                            return new Read(read, timestamp);
+                        rts.put(key, transaction);
+                        int peekTimestamp = 0;
+                        if (peek != null) {
+                            peekTimestamp = peek.getTimestamp();
                         }
+
+                        System.out.println(String.format("%d %d read %s %d %d", System.nanoTime(), transaction.getTimestamp(), key, read, peekTimestamp));
+                        if (read == null) {
+                            System.out.println("ERROR");
+                        }
+                        return new Read(read, timestamp);
                     }
                 }
             }
@@ -224,16 +210,9 @@ public class MVCC {
     public void commit(Transaction transaction) {
 
         transactions.remove(transaction);
-        // System.out.println(String.format("%d %d begin commit", System.nanoTime(), transaction.getTimestamp()));
 
         boolean restart = false;
         String conflictType = "";
-
-//        Transaction challenger = transaction.getChallenger();
-//        if (challenger != null) {
-//            restart = true;
-//            conflictType = "challenger";
-//        }
 
         for (Writehandle writehandle : transaction.getWritehandles()) {
             Transaction peek = rts.get(writehandle.key);
@@ -262,7 +241,6 @@ public class MVCC {
             }
 
         }
-        transaction.setChallenger(null);
         if (restart) {
 
             transactions.add(transaction);

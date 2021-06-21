@@ -91,14 +91,6 @@ class TransactionC extends Thread implements MVCC.Transaction {
     }
 
     @Override
-    public void setChallenger(MVCC.Transaction transaction) {
-        this.challenger = transaction;
-    }
-    @Override
-    public MVCC.Transaction getChallenger() {
-        return challenger;
-    }
-    @Override
     public void setTimestamp(int timestamp) {
         this.timestamp = timestamp;
     }
