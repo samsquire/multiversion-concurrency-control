@@ -9,7 +9,7 @@ class TransactionB extends Thread implements MVCC.Transaction {
     private final MVCC mvcc;
     private final ConcurrentHashMap<String, Integer> rts;
     private boolean aborted = true;
-    private int timestamp;
+    private volatile int timestamp;
     public List<MVCC.Writehandle> writehandles;
     private MVCC.Transaction challenger;
 

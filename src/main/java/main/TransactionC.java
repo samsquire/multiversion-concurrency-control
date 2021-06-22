@@ -1,7 +1,6 @@
 package main;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -12,7 +11,6 @@ class TransactionC extends Thread implements MVCC.Transaction {
     private boolean aborted = true;
     private volatile int timestamp;
     public List<MVCC.Writehandle> writehandles;
-    private MVCC.Transaction challenger;
 
     public TransactionC(MVCC mvcc) {
         this.mvcc = mvcc;
