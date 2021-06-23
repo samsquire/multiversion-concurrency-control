@@ -12,6 +12,7 @@ class TransactionA extends Thread implements MVCC.Transaction {
     private volatile int timestamp;
     public List<MVCC.Writehandle> writehandles;
     private MVCC.Transaction challenger;
+    private volatile boolean cancelled;
 
     public TransactionA(MVCC mvcc) {
         this.mvcc = mvcc;
@@ -74,6 +75,7 @@ class TransactionA extends Thread implements MVCC.Transaction {
     public void clear() {
         rts.clear();
         writehandles.clear();
+        cancelled = false;
     }
     @Override
     public void addWrite(MVCC.Writehandle writehandle) {
@@ -88,5 +90,15 @@ class TransactionA extends Thread implements MVCC.Transaction {
     @Override
     public void setTimestamp(int timestamp) {
         this.timestamp = timestamp;
+    }
+
+    @Override
+    public void cancel() {
+        this.cancelled = true;
+    }
+
+    @Override
+    public boolean getCancelled() {
+        return cancelled;
     }
 }
