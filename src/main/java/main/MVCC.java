@@ -4,6 +4,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.lang.Integer.max;
+import static java.lang.Integer.min;
 
 
 public class MVCC {
@@ -15,7 +16,7 @@ public class MVCC {
     private volatile int counter;
     private boolean earlyAborts;
     private volatile int lastCommit;
-//    private ConcurrentHashMap<String, Transaction> rts;
+    //    private ConcurrentHashMap<String, Transaction> rts;
     private ConcurrentHashMap<String, Integer> wts;
     private ConcurrentHashMap<String, Transaction> rts;
     private int precommit;
@@ -99,7 +100,6 @@ public class MVCC {
         }
         return true;
     }
-
 
 
     class Writehandle {
@@ -248,9 +248,7 @@ public class MVCC {
         }
     }
 
-    public void commit(Transaction transaction) {
-
-
+    public synchronized void commit(Transaction transaction) {
         boolean restart = false;
         String conflictType = "";
 
@@ -274,7 +272,6 @@ public class MVCC {
                 break;
             }
 
-
             if (wts.containsKey(writehandle.key) && wts.get(writehandle.key) < transaction.getTimestamp()) {
                 restart = true;
                 conflictType = "someonewrote";
@@ -291,12 +288,10 @@ public class MVCC {
                 restart = true;
                 conflictType = "beaten";
             }
-
         }
 
         if (!restart) {
             for (Read read : transaction.getReadHandles()) {
-
 
                 if (!read.usageCount.equals(usageCount.get(read.key).get(read.version))) {
                     restart = true;
@@ -314,15 +309,6 @@ public class MVCC {
         }
 
         System.out.println(String.format("%d Challengers checked", transaction.getTimestamp()));
-
-        if (!restart) {
-            precommit = max(precommit, transaction.getTimestamp());
-        }
-
-        if (precommit > transaction.getTimestamp()) {
-            restart = true;
-            conflictType = "trample";
-        }
 
         if (restart) {
 
@@ -344,7 +330,7 @@ public class MVCC {
 
             for (Writehandle writehandle : transaction.getWritehandles()) {
                 Integer integer = committed.get(writehandle.key);
-                if (integer == null)  {
+                if (integer == null) {
                     integer = transaction.getTimestamp();
                 }
 
@@ -356,6 +342,7 @@ public class MVCC {
 //            lastCommit = transaction.getTimestamp();
             System.out.println(String.format("%d %d won committed", System.nanoTime(), transaction.getTimestamp()));
             transaction.setTimestamp(Integer.MAX_VALUE);
+            precommit = Integer.MAX_VALUE;
         }
 
 
