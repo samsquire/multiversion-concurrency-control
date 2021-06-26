@@ -1,13 +1,15 @@
 package main;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 class TransactionC extends Thread implements MVCC.Transaction {
 
     private final MVCC mvcc;
-    private final ConcurrentHashMap<String, Integer> rts;
+    private final List<MVCC.Transaction> challengers;
+    private final List<MVCC.Read> readhandles;
     private boolean aborted = true;
     private volatile int timestamp;
     public List<MVCC.Writehandle> writehandles;
@@ -16,7 +18,8 @@ class TransactionC extends Thread implements MVCC.Transaction {
     public TransactionC(MVCC mvcc) {
         this.mvcc = mvcc;
         this.writehandles = new ArrayList<>();
-        this.rts = new ConcurrentHashMap<String, Integer>();
+        this.challengers = Collections.synchronizedList(new ArrayList<>());
+        this.readhandles = new ArrayList<>();
 
     }
 
@@ -25,9 +28,10 @@ class TransactionC extends Thread implements MVCC.Transaction {
         super.run();
         while (aborted) {
             while (true) {
+                int previous_timestamp = timestamp;
                 timestamp = mvcc.issue(this);
 
-                System.out.println(String.format("Was previously aborted %d", timestamp));
+                System.out.println(String.format("Was previously aborted %d previous was %d", timestamp, previous_timestamp));
 
                 MVCC.Read A = mvcc.read(this, "A");
                 if (A == null) {
@@ -75,9 +79,10 @@ class TransactionC extends Thread implements MVCC.Transaction {
 
     @Override
     public void clear() {
-        rts.clear();
         writehandles.clear();
         cancelled = false;
+        challengers.clear();
+        readhandles.clear();
     }
 
     @Override
@@ -103,5 +108,37 @@ class TransactionC extends Thread implements MVCC.Transaction {
     @Override
     public boolean getCancelled() {
         return cancelled;
+    }
+
+    @Override
+    public void addChallenger(MVCC.Transaction transaction) {
+        challengers.add(transaction);
+    }
+
+    @Override
+    public List<MVCC.Transaction> getChallengers() {
+        return challengers;
+    }
+
+    @Override
+    public void addRead(MVCC.Read readHandle) {
+        readhandles.add(readHandle);
+    }
+
+    @Override
+    public List<MVCC.Read> getReadHandles() {
+        return readhandles;
+    }
+
+    @Override
+    public boolean checkChallengers(MVCC.Transaction transaction) {
+        synchronized (challengers) {
+            for (MVCC.Transaction challenger : challengers) {
+                if (challenger.getTimestamp() < transaction.getTimestamp()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

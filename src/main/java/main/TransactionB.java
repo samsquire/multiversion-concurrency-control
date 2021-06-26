@@ -1,5 +1,7 @@
 package main;
 
+import net.rubygrapefruit.platform.internal.FileSystemList;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -7,12 +9,13 @@ import java.util.concurrent.ConcurrentHashMap;
 class TransactionB extends Thread implements MVCC.Transaction {
 
     private final MVCC mvcc;
-    private final ConcurrentHashMap<String, Integer> rts;
+    private final ArrayList<MVCC.Transaction> challengers;
     private boolean aborted = true;
     private volatile int timestamp;
     public List<MVCC.Writehandle> writehandles;
     private MVCC.Transaction challenger;
     private volatile boolean cancelled;
+    private List<MVCC.Read> readhandles;
 
     @Override
     public List<MVCC.Writehandle> getWritehandles() {
@@ -22,7 +25,8 @@ class TransactionB extends Thread implements MVCC.Transaction {
     public TransactionB(MVCC mvcc) {
         this.mvcc = mvcc;
         this.writehandles = new ArrayList<MVCC.Writehandle>();
-        this.rts = new ConcurrentHashMap<String, Integer>();
+        this.challengers = new ArrayList<>();
+        this.readhandles = new ArrayList<>();
 
     }
 
@@ -72,9 +76,10 @@ class TransactionB extends Thread implements MVCC.Transaction {
 
     @Override
     public void clear() {
-        rts.clear();
         writehandles.clear();
         cancelled = false;
+        challengers.clear();
+        readhandles.clear();
     }
     @Override
     public void addWrite(MVCC.Writehandle writehandle) {
@@ -99,5 +104,29 @@ class TransactionB extends Thread implements MVCC.Transaction {
     @Override
     public boolean getCancelled() {
         return cancelled;
+    }
+
+    @Override
+    public void addChallenger(MVCC.Transaction transaction) {
+        challengers.add(transaction);
+    }
+
+    @Override
+    public List<MVCC.Transaction> getChallengers() {
+        return challengers;
+    }
+    @Override
+    public void addRead(MVCC.Read readHandle) {
+        readhandles.add(readHandle);
+    }
+
+    @Override
+    public List<MVCC.Read> getReadHandles() {
+        return readhandles;
+    }
+
+    @Override
+    public boolean checkChallengers(MVCC.Transaction transaction) {
+        return false;
     }
 }
