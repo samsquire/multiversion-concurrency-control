@@ -204,7 +204,7 @@ public class MVCC {
 
         // read your own writes
         if (values.containsKey(transaction.getTimestamp())) {
-            return new Read(key, values.get(transaction.getTimestamp()), transaction.getTimestamp(), transaction.getTimestamp(), 0);
+            return new Read(values.get(transaction.getTimestamp()), transaction.getTimestamp());
         }
         for (Integer version : versions) {
             System.out.println(String.format("%d Inspecting version %d", transaction.getTimestamp(), version));
@@ -241,7 +241,7 @@ public class MVCC {
                         System.out.println("ERROR");
                         throw new IllegalArgumentException();
                     }
-                    Read readHandle = new Read(key, read, lastKnownCommit, version, previousUsageCount + 1);
+                    Read readHandle = new Read(read, lastKnownCommit);
                     transaction.addRead(readHandle);
                     return readHandle;
                 } else {
@@ -259,16 +259,12 @@ public class MVCC {
     public class Read {
         Integer value;
         Integer timestamp;
-        String key;
-        Integer version;
-        Integer usageCount;
 
-        public Read(String key, Integer value, Integer timestamp, Integer version, Integer usageCount) {
+
+        public Read(Integer value, Integer timestamp) {
             this.value = value;
             this.timestamp = timestamp;
-            this.key = key;
-            this.version = version;
-            this.usageCount = usageCount;
+
         }
     }
 
@@ -310,12 +306,6 @@ public class MVCC {
                         }
                     }
                 }
-            }
-
-            if (wts.containsKey(writehandle.key) && wts.get(writehandle.key) != transaction.getTimestamp()) {
-                transaction.markRestart(true);
-                conflictType = "someonewrote";
-                break;
             }
 
             if (committed.containsKey(writehandle.key) && writehandle.timestamp != null && !committed.get(writehandle.key).equals(writehandle.timestamp)) {
