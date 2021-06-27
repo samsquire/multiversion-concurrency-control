@@ -15,6 +15,8 @@ class TransactionA extends Thread implements MVCC.Transaction {
     public List<MVCC.Writehandle> writehandles;
     private MVCC.Transaction challenger;
     private volatile boolean cancelled;
+    private boolean precommit;
+    private boolean restart;
 
     public TransactionA(MVCC mvcc) {
         this.mvcc = mvcc;
@@ -49,7 +51,7 @@ class TransactionA extends Thread implements MVCC.Transaction {
                 if (writeC == null) {
                     break;
                 }
-
+                mvcc.validate(this);
                 mvcc.commit(this);
                 mvcc.dump();
                 break;
@@ -80,6 +82,8 @@ class TransactionA extends Thread implements MVCC.Transaction {
         cancelled = false;
         challengers.clear();
         readhandles.clear();
+        precommit = false;
+        restart = false;
     }
     @Override
     public void addWrite(MVCC.Writehandle writehandle) {
@@ -129,5 +133,34 @@ class TransactionA extends Thread implements MVCC.Transaction {
     @Override
     public boolean checkChallengers(MVCC.Transaction transaction) {
         return false;
+    }
+
+    @Override
+    public String createLockKey() {
+        StringBuilder b = new StringBuilder();
+        for (MVCC.Writehandle writehandle : writehandles) {
+            b.append(writehandle.key);
+        }
+        return b.toString();
+    }
+
+    @Override
+    public void markPrecommit() {
+        precommit = true;
+    }
+
+    @Override
+    public boolean getPrecommit() {
+        return precommit;
+    }
+
+    @Override
+    public void markRestart(boolean restart) {
+        this.restart = restart;
+    }
+
+    @Override
+    public boolean getRestart() {
+        return restart;
     }
 }
