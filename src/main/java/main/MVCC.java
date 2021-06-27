@@ -10,7 +10,6 @@ import static java.lang.Integer.min;
 public class MVCC {
 
 
-    private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, Integer>> usageCount;
     private ConcurrentHashMap<String, ConcurrentHashMap<Integer, Integer>> database;
     private ConcurrentHashMap<String, Integer> committed;
     private volatile int counter;
@@ -32,7 +31,6 @@ public class MVCC {
         this.active = Collections.synchronizedList(new ArrayList<>());
         this.counter = 0;
         this.lastCommit = 0;
-        this.usageCount = new ConcurrentHashMap<String, ConcurrentHashMap<Integer, Integer>>();
         this.wts = new ConcurrentHashMap<String, Integer>();
         this.rts = new ConcurrentHashMap<>();
         this.locks = new ConcurrentHashMap<>();
@@ -58,8 +56,6 @@ public class MVCC {
             System.out.println(String.format("%s doesn't exist, creating", key));
             ConcurrentHashMap<Integer, Integer> newdata = new ConcurrentHashMap<>();
             database.put(key, newdata);
-            ConcurrentHashMap<Integer, Integer> counts = new ConcurrentHashMap<>();
-            usageCount.put(key, counts);
             touched.put(key, Collections.synchronizedList(new ArrayList<Transaction>()));
 
         }
@@ -227,8 +223,6 @@ public class MVCC {
                     }
 
 
-                    int previousUsageCount = usageCount.get(key).getOrDefault(version, 0);
-                    usageCount.get(key).put(version, previousUsageCount + 1);
                     rts.put(key, transaction);
                     touched.get(key).add(transaction);
                     int peekTimestamp = 0;
