@@ -354,20 +354,17 @@ public class MVCC {
 
 
             for (Writehandle writehandle : transaction.getWritehandles()) {
-                Integer integer = committed.get(writehandle.key);
-                if (integer == null) {
-                    integer = transaction.getTimestamp();
-                }
 
-                committed.put(writehandle.key, max(integer, transaction.getTimestamp()));
+
+                committed.put(writehandle.key, transaction.getTimestamp());
                 System.out.println(String.format("%d %d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(writehandle.key).get(transaction.getTimestamp())));
                 if (rts.get(writehandle.key) == transaction) {
                     rts.remove(writehandle.key);
                 }
                 touched.get(writehandle.key).clear();
             }
-            lastCommit = max(lastCommit, transaction.getTimestamp());
-//            lastCommit = transaction.getTimestamp();
+            lastCommit = transaction.getTimestamp();
+
             System.out.println(String.format("%d %d won committed", System.nanoTime(), transaction.getTimestamp()));
             transaction.setTimestamp(Integer.MAX_VALUE);
 
