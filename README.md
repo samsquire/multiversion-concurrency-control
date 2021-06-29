@@ -6,7 +6,7 @@ ConcurrentWithdrawer is another attempt to implement MVCC - it simulates 5 users
 
 Raft implementation
 
-#Multiversion concurrency control - How it works
+# Multiversion concurrency control - How it works
 
 The database offers keys of values which are integers. They are named, in the transaction examples, the keys are A and B.
 
