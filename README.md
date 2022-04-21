@@ -8,8 +8,6 @@ Raft implementation
 
 # Multiversion concurrency control - How it works
 
-[For a more in depth explanation, check out my blog post on the matter.](https://elaeis.cloud-angle.com/?p=323)
-
 The database offers keys of values which are integers. They are named, in the transaction examples, the keys are A and B.
 
 When two transactions begin concurrently, they are numbered monotonically increasing: 1, 2, 3 , etc They both try read A and B. They will only "see" versions of A and B that are committed and versioned less than their transaction id so if transaction 2 is running, it won't see transaction 1's changes because 1 hasn't committed. But if transaction 0 has comitted, they will both see those values. But when they both try write to A and B, they create a new version using their transaction timestamp. We keep tract of all the transactions that have "seen" a value.
