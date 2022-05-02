@@ -16,6 +16,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
     private volatile boolean cancelled;
     private boolean precommit;
     private boolean restart;
+    private int attempts = 0;
 
     public TransactionC(MVCC mvcc) {
         this.mvcc = mvcc;
@@ -30,6 +31,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
         super.run();
         while (aborted) {
             while (true) {
+                attempts++;
                 int previous_timestamp = timestamp;
                 timestamp = mvcc.issue(this);
 
@@ -175,5 +177,9 @@ class TransactionC extends Thread implements MVCC.Transaction {
     @Override
     public boolean getRestart() {
         return restart;
+    }
+
+    public int getNumberOfAttempts() {
+        return attempts;
     }
 }

@@ -37,6 +37,10 @@ public class Runner {
         assert mvcc.getLatest("B") == 102;
         assert(mvcc.versionsInOrder("A"));
         System.out.println(mvcc.getHighestVersion("A"));
+        System.out.println("Number of attempts");
+        for (TransactionC transaction : transactions) {
+            System.out.println(transaction.getNumberOfAttempts());
+        }
         System.exit(0);
 
     }
