@@ -18,7 +18,7 @@ class TransactionB extends Thread implements MVCC.Transaction {
     private List<MVCC.Read> readhandles;
     private boolean precommit;
     private boolean restart;
-
+    private int attempts;
     @Override
     public List<MVCC.Writehandle> getWritehandles() {
         return writehandles;
@@ -37,6 +37,7 @@ class TransactionB extends Thread implements MVCC.Transaction {
         super.run();
         while (aborted) {
             while (true) {
+                attempts++;
                 timestamp = mvcc.issue(this);
                 System.out.println(String.format("Was previously aborted %d", timestamp));
                 MVCC.Writehandle writeA = mvcc.intend_to_write(this,"A", 1, null);
@@ -162,5 +163,10 @@ class TransactionB extends Thread implements MVCC.Transaction {
     @Override
     public boolean getRestart() {
         return restart;
+    }
+
+    @Override
+    public int getNumberOfAttempts() {
+        return attempts;
     }
 }
