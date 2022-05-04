@@ -331,7 +331,7 @@ public class MVCC {
 
 
         precommit = max(transaction.getTimestamp(), precommit);
-        transaction.markSuccessful();
+        // transaction.markSuccessful();
 
 
 

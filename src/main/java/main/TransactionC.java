@@ -32,6 +32,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
         super.run();
         while (aborted) {
             while (true) {
+                success = true;
                 attempts++;
                 int previous_timestamp = timestamp;
                 timestamp = mvcc.issue(this);
@@ -40,21 +41,25 @@ class TransactionC extends Thread implements MVCC.Transaction {
 
                 MVCC.Read A = mvcc.read(this, "A");
                 if (A == null) {
+                    success = false;
                     break;
                 }
                 MVCC.Read B = mvcc.read(this, "B");
                 if (B == null) {
+                    success = false;
                     break;
                 }
                 MVCC.Writehandle writeC = mvcc.intend_to_write(this,"A", A.value + 1, A.timestamp);
 
                 if (writeC == null) {
+                    success = false;
                     break;
                 }
 
                 MVCC.Writehandle writeD = mvcc.intend_to_write(this,"B", B.value + 1, B.timestamp);
 
                 if (writeD == null) {
+                    success = false;
                     break;
                 }
                 mvcc.validate(this);
