@@ -17,6 +17,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
     private boolean precommit;
     private boolean restart;
     private int attempts = 0;
+    private boolean success;
 
     public TransactionC(MVCC mvcc) {
         this.mvcc = mvcc;
@@ -181,5 +182,15 @@ class TransactionC extends Thread implements MVCC.Transaction {
 
     public int getNumberOfAttempts() {
         return attempts;
+    }
+
+    @Override
+    public void markSuccessful() {
+        success = true;
+    }
+
+    @Override
+    public boolean getSuccessful() {
+        return success;
     }
 }

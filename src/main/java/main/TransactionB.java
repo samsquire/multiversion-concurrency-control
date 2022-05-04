@@ -19,6 +19,8 @@ class TransactionB extends Thread implements MVCC.Transaction {
     private boolean precommit;
     private boolean restart;
     private int attempts;
+    private boolean success;
+
     @Override
     public List<MVCC.Writehandle> getWritehandles() {
         return writehandles;
@@ -168,5 +170,15 @@ class TransactionB extends Thread implements MVCC.Transaction {
     @Override
     public int getNumberOfAttempts() {
         return attempts;
+    }
+
+    @Override
+    public void markSuccessful() {
+        success = true;
+    }
+
+    @Override
+    public boolean getSuccessful() {
+        return success;
     }
 }

@@ -161,6 +161,10 @@ public class MVCC {
         boolean getRestart();
 
         int getNumberOfAttempts();
+
+        void markSuccessful();
+
+        boolean getSuccessful();
     }
 
     public Writehandle intend_to_write(Transaction transaction, String key, Integer value, Integer timestamp) {
@@ -169,7 +173,7 @@ public class MVCC {
         if (earlyAborts) {
             Transaction peek = rts.get(key);
 
-            if (peek != null && peek.getTimestamp()  < transaction.getTimestamp() || peek.getNumberOfAttempts() > transaction.getNumberOfAttempts()) {
+            if (peek != null && peek.getTimestamp()  < transaction.getTimestamp() || (peek.getNumberOfAttempts() > transaction.getNumberOfAttempts() && peek.getSuccessful())) {
                 System.out.println(String.format("%d wins against %d", peek, transaction.getTimestamp()));
                 restart = true;
             }
@@ -215,7 +219,7 @@ public class MVCC {
 
                     Transaction peek = rts.get(key);
 
-                    if (peek != null && (transaction.getTimestamp() > peek.getTimestamp() || (peek.getNumberOfAttempts() > transaction.getNumberOfAttempts()))) {
+                    if (peek != null && (transaction.getTimestamp() > peek.getTimestamp() || (peek.getNumberOfAttempts() > transaction.getNumberOfAttempts() && peek.getSuccessful()))) {
                         System.out.println(String.format("%d %d should win %b", transaction.getTimestamp(), peek.getTimestamp(), peek.getAborted()));
 
                         return null;
@@ -285,7 +289,7 @@ public class MVCC {
                 peakTimestamp = peek.getTimestamp();
             }
             System.out.println(String.format("%d %d begin commit (peek=%d)", System.nanoTime(), transaction.getTimestamp(), peakTimestamp));
-            if (peek != null && (peek.getTimestamp() != transaction.getTimestamp() || (peek.getNumberOfAttempts() > transaction.getNumberOfAttempts()))) {
+            if (peek != null && (peek.getTimestamp() != transaction.getTimestamp() || (peek.getNumberOfAttempts() > transaction.getNumberOfAttempts() && peek.getSuccessful()))) {
                 System.out.println(String.format("%d wins against %d", peek.getTimestamp(), transaction.getTimestamp()));
                 transaction.markRestart(true);
                 conflictType = "read";
@@ -296,7 +300,7 @@ public class MVCC {
                 List<Transaction> transactions = touched.get(writehandle.key);
                 synchronized (transactions) {
                     for (Transaction other : transactions) {
-                        if (((other.getTimestamp() < transaction.getTimestamp() || transaction.getNumberOfAttempts() < other.getNumberOfAttempts())) || other.getPrecommit() && ((other.getTimestamp() > transaction.getTimestamp() || other.getNumberOfAttempts() > transaction.getNumberOfAttempts()) && !other.getRestart())) {
+                        if (((other.getTimestamp() < transaction.getTimestamp() || (transaction.getNumberOfAttempts() < other.getNumberOfAttempts())) && other.getSuccessful()) || other.getPrecommit() && ((other.getTimestamp() > transaction.getTimestamp() || (other.getNumberOfAttempts() > transaction.getNumberOfAttempts() && other.getSuccessful())) && !other.getRestart())) {
                             transaction.markRestart(true);
                             break;
                         }
@@ -327,7 +331,7 @@ public class MVCC {
 
 
         precommit = max(transaction.getTimestamp(), precommit);
-
+        transaction.markSuccessful();
 
 
 
