@@ -2,7 +2,6 @@ package main;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 class TransactionA extends Thread implements MVCC.Transaction {
 
@@ -134,7 +133,7 @@ class TransactionA extends Thread implements MVCC.Transaction {
     }
 
     @Override
-    public boolean checkChallengers(MVCC.Transaction transaction) {
+    public boolean checkChallengers(MVCC mvcc, MVCC.Transaction transaction) {
         return false;
     }
 

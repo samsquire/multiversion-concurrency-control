@@ -1,10 +1,7 @@
 package main;
 
-import net.rubygrapefruit.platform.internal.FileSystemList;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 class TransactionB extends Thread implements MVCC.Transaction {
 
@@ -133,7 +130,7 @@ class TransactionB extends Thread implements MVCC.Transaction {
     }
 
     @Override
-    public boolean checkChallengers(MVCC.Transaction transaction) {
+    public boolean checkChallengers(MVCC mvcc, MVCC.Transaction transaction) {
         return false;
     }
 

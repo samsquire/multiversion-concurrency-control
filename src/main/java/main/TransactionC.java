@@ -3,7 +3,6 @@ package main;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 class TransactionC extends Thread implements MVCC.Transaction {
 
@@ -143,7 +142,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
     }
 
     @Override
-    public boolean checkChallengers(MVCC.Transaction transaction) {
+    public boolean checkChallengers(MVCC mvcc, MVCC.Transaction transaction) {
         synchronized (challengers) {
             for (MVCC.Transaction challenger : challengers) {
                 if (challenger.getTimestamp() < transaction.getTimestamp()) {
