@@ -2,6 +2,9 @@ package main;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static java.lang.Integer.max;
 
@@ -21,7 +24,8 @@ public class MVCC {
     private List<Transaction> active;
     private ConcurrentHashMap<String, String> locks;
     private ConcurrentHashMap<String, List<Transaction>> touched;
-
+    private ConcurrentHashMap<String, Lock> writeLocks;
+    private ReadWriteLock rwlock = new ReentrantReadWriteLock();
 
     public MVCC(boolean earlyAborts) {
         this.earlyAborts = earlyAborts;
@@ -34,6 +38,7 @@ public class MVCC {
         this.rts = new ConcurrentHashMap<>();
         this.locks = new ConcurrentHashMap<>();
         this.touched = new ConcurrentHashMap<>();
+        this.writeLocks = new ConcurrentHashMap<>();
     }
 
     public synchronized int issue(Transaction transaction) {
@@ -164,6 +169,10 @@ public class MVCC {
         void markSuccessful();
 
         boolean getSuccessful();
+
+        void addLock(String key, Lock lock);
+
+        Lock getLock(String key);
     }
 
     public Writehandle intend_to_write(Transaction transaction, String key, Integer value, Integer timestamp) {
@@ -173,7 +182,7 @@ public class MVCC {
             Transaction peek = rts.get(key);
 
             if (peek != null && shouldRestart(transaction, peek)) {
-                // System.out.println(String.format("%d wins against %d", peek, transaction.getTimestamp()));
+                System.out.println(String.format("%d wins against %d", peek, transaction.getTimestamp()));
                 restart = true;
             }
 
@@ -182,7 +191,16 @@ public class MVCC {
                 return null;
             }
         }
+        Lock lock = null;
+        if (writeLocks.containsKey(key)) {
+            lock = writeLocks.get(key);
+        } else {
+            lock = rwlock.writeLock();
 
+            writeLocks.put(key, lock);
+        }
+        transaction.addLock(key, lock);
+        lock.lock();
         database.get(key).put(transaction.getTimestamp(), value);
         wts.put(key, transaction.getTimestamp());
 
@@ -208,7 +226,7 @@ public class MVCC {
             return new Read(values.get(transaction.getTimestamp()), transaction.getTimestamp());
         }
         for (Integer version : versions) {
-            // System.out.println(String.format("%d Inspecting version %d", transaction.getTimestamp(), version));
+            System.out.println(String.format("%d Inspecting version %d", transaction.getTimestamp(), version));
             if (version <= transaction.getTimestamp()) {
 
                 Integer lastKnownCommit = committed.get(key);
@@ -219,7 +237,7 @@ public class MVCC {
                     Transaction peek = rts.get(key);
 
                     if (peek != null && (shouldRestart(transaction, peek))) {
-                        // System.out.println(String.format("%d %d should win %b", transaction.getTimestamp(), peek.getTimestamp(), peek.getAborted()));
+                        System.out.println(String.format("%d %d should win %b", transaction.getTimestamp(), peek.getTimestamp(), peek.getAborted()));
 
                         return null;
                     }
@@ -235,7 +253,7 @@ public class MVCC {
                         peekTimestamp = peek.getTimestamp();
                     }
 
-                    // System.out.println(String.format("%d %d read %s %d %d", System.nanoTime(), transaction.getTimestamp(), key, read, peekTimestamp));
+                    System.out.println(String.format("%d %d read %s %d %d", System.nanoTime(), transaction.getTimestamp(), key, read, peekTimestamp));
                     if (read == null) {
                         System.out.println("ERROR");
                         throw new IllegalArgumentException();
@@ -244,7 +262,7 @@ public class MVCC {
                     transaction.addRead(readHandle);
                     return readHandle;
                 } else {
-                    // System.out.println(String.format("%d %d Version is not equal to committed %d %d", transaction.getTimestamp(), version, lastKnownCommit, lastCommit));
+                    System.out.println(String.format("%d %d Version is not equal to committed %d %d", transaction.getTimestamp(), version, lastKnownCommit, lastCommit));
                 }
 
             } else {
@@ -256,11 +274,13 @@ public class MVCC {
     }
 
     public boolean shouldRestart(Transaction transaction, Transaction peek) {
-        return (((peek.getTimestamp() < transaction.getTimestamp() ||
+        boolean defeated =  (((peek.getTimestamp() < transaction.getTimestamp() ||
                 (transaction.getNumberOfAttempts() < peek.getNumberOfAttempts())) && peek.getPrecommit()) ||
                 peek.getPrecommit() && (peek.getTimestamp() > transaction.getTimestamp() ||
                         (peek.getNumberOfAttempts() > transaction.getNumberOfAttempts() && peek.getPrecommit())
                         && !peek.getRestart()));
+
+        return defeated;
     }
 
     public class Read {
@@ -295,9 +315,9 @@ public class MVCC {
             if (peek != null) {
                 peakTimestamp = peek.getTimestamp();
             }
-            // System.out.println(String.format("%d %d begin commit (peek=%d)", System.nanoTime(), transaction.getTimestamp(), peakTimestamp));
+            System.out.println(String.format("%d %d begin commit (peek=%d)", System.nanoTime(), transaction.getTimestamp(), peakTimestamp));
             if (peek != null && (shouldRestart(transaction, peek))) {
-                // System.out.println(String.format("%d wins against %d", peek.getTimestamp(), transaction.getTimestamp()));
+                System.out.println(String.format("%d wins against %d", peek.getTimestamp(), transaction.getTimestamp()));
                 transaction.markRestart(true);
                 conflictType = "read";
                 break;
@@ -327,7 +347,7 @@ public class MVCC {
 
 
         List<Transaction> challengers = transaction.getChallengers();
-        // System.out.println(String.format("%d Checking challengers %d", transaction.getTimestamp(), challengers.size()));
+        System.out.println(String.format("%d Checking challengers %d", transaction.getTimestamp(), challengers.size()));
 
         if (transaction.checkChallengers(this, transaction)) {
             transaction.markRestart(true);
@@ -344,7 +364,7 @@ public class MVCC {
 
         if (transaction.getRestart()) {
 
-            // System.out.println(String.format("%d Conflict %s Restarting transaction", transaction.getTimestamp(), conflictType));
+            System.out.println(String.format("%d Conflict %s Restarting transaction", transaction.getTimestamp(), conflictType));
             transaction.setAborted(true);
 
 
@@ -357,13 +377,14 @@ public class MVCC {
                 synchronized (transactions) {
                     transactions.remove(transaction);
                 }
+                
             }
             transaction.clear();
 
 
         } else {
 
-            // System.out.println(String.format("%d Passed checks, committing...", transaction.getTimestamp()));
+            System.out.println(String.format("%d Passed checks, committing...", transaction.getTimestamp()));
             transaction.setAborted(false);
 
 
@@ -371,11 +392,12 @@ public class MVCC {
 
 
                 committed.put(writehandle.key, transaction.getTimestamp());
-                // System.out.println(String.format("%d %d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(writehandle.key).get(transaction.getTimestamp())));
+                System.out.println(String.format("%d %d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(writehandle.key).get(transaction.getTimestamp())));
                 if (rts.get(writehandle.key) == transaction) {
                     rts.remove(writehandle.key);
                 }
                 touched.get(writehandle.key).clear();
+                transaction.getLock(writehandle.key).unlock();
             }
             lastCommit = transaction.getTimestamp();
 

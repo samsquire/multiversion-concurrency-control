@@ -17,7 +17,10 @@ public class Runner {
         for (int i = 0 ; i < 100; i++) {
             TransactionC transactionC = new TransactionC(mvcc);
             transactions.add(transactionC);
-            transactionC.start();
+
+        }
+        for (int i = transactions.size() - 1; i >= 0 ; i--) {
+            transactions.get(i).start();
         }
         for (TransactionC transaction : transactions) {
             transaction.join();

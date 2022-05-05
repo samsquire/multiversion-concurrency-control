@@ -3,6 +3,9 @@ package main;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 
 class TransactionC extends Thread implements MVCC.Transaction {
 
@@ -17,13 +20,16 @@ class TransactionC extends Thread implements MVCC.Transaction {
     private boolean restart;
     private int attempts = 0;
     private boolean success;
+    private boolean blessed;
+    private boolean defeated;
+    private ConcurrentHashMap<String, Lock> locks;
 
     public TransactionC(MVCC mvcc) {
         this.mvcc = mvcc;
         this.writehandles = new ArrayList<>();
         this.challengers = Collections.synchronizedList(new ArrayList<>());
         this.readhandles = new ArrayList<>();
-
+        this.locks = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -94,6 +100,9 @@ class TransactionC extends Thread implements MVCC.Transaction {
         readhandles.clear();
         precommit = false;
         restart = false;
+        for (Map.Entry<String, Lock> entry : locks.entrySet()) {
+            entry.getValue().unlock();
+        }
     }
 
     @Override
@@ -197,4 +206,15 @@ class TransactionC extends Thread implements MVCC.Transaction {
     public boolean getSuccessful() {
         return success;
     }
+
+    @Override
+    public void addLock(String key, Lock lock) {
+        locks.put(key, lock);
+    }
+
+    @Override
+    public Lock getLock(String key) {
+        return locks.get(key);
+    }
+
 }
