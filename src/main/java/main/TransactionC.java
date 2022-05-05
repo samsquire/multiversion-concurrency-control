@@ -145,7 +145,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
     public boolean checkChallengers(MVCC mvcc, MVCC.Transaction transaction) {
         synchronized (challengers) {
             for (MVCC.Transaction challenger : challengers) {
-                if (challenger.getTimestamp() < transaction.getTimestamp()) {
+                if (mvcc.shouldRestart(transaction, challenger)) {
                     return true;
                 }
             }
