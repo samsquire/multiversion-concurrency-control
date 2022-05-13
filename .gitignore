@@ -1,2 +1,4 @@
 build/classes
 log.log
+build/
+.gradle
