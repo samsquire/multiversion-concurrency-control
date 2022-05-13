@@ -13,7 +13,7 @@ dependencies {
 
 
 ext {
-    javaMainClass = "main.ConcurrentWithdrawer"
+    javaMainClass = "main.Runner"
 }
 
 application {
