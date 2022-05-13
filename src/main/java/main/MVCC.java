@@ -347,7 +347,7 @@ public class MVCC {
 
 
         List<Transaction> challengers = transaction.getChallengers();
-        System.out.println(String.format("%d Checking challengers %d", transaction.getTimestamp(), challengers.size()));
+        // System.out.println(String.format("%d Checking challengers %d", transaction.getTimestamp(), challengers.size()));
 
         if (transaction.checkChallengers(this, transaction)) {
             transaction.markRestart(true);

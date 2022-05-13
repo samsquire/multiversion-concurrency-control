@@ -42,7 +42,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
                 int previous_timestamp = timestamp;
                 timestamp = mvcc.issue(this);
 
-                System.out.println(String.format("Was previously aborted %d previous was %d", timestamp, previous_timestamp));
+                System.out.println(String.format("Was previously aborted. New timestamp is %d previous was %d", timestamp, previous_timestamp));
 
                 MVCC.Read A = mvcc.read(this, "A");
                 if (A == null) {
