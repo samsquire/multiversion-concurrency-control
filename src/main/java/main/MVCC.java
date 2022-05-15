@@ -173,6 +173,8 @@ public class MVCC {
         void addLock(String key, Lock lock);
 
         Lock getLock(String key);
+
+
     }
 
     public Writehandle intend_to_write(Transaction transaction, String key, Integer value, Integer timestamp) {
@@ -240,7 +242,7 @@ public class MVCC {
 
                     if (peek != null && (shouldRestart(transaction, peek))) {
                         System.out.println(String.format("t%d %d should win %b", transaction.getTimestamp(), peek.getTimestamp(), peek.getAborted()));
-
+                        Thread.yield();
                         return null;
                     }
                     if (peek != null) {
@@ -391,9 +393,10 @@ public class MVCC {
 
             for (Writehandle writehandle : transaction.getWritehandles()) {
 
-
+                System.out.println(String.format("t%d Updating committed...", transaction.getTimestamp()));
                 committed.put(writehandle.key, transaction.getTimestamp());
-                System.out.println(String.format("%d %d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(writehandle.key).get(transaction.getTimestamp())));
+                System.out.println(String.format("t%d Wrote committed", transaction.getTimestamp()));
+                System.out.println(String.format("%d t%d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(writehandle.key).get(transaction.getTimestamp())));
                 if (rts.get(writehandle.key) == transaction) {
                     rts.remove(writehandle.key);
                 }
