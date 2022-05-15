@@ -132,7 +132,9 @@ class TransactionC extends Thread implements MVCC.Transaction {
 
     @Override
     public void addChallenger(MVCC.Transaction transaction) {
+
         challengers.add(transaction);
+
     }
 
     @Override
@@ -152,13 +154,16 @@ class TransactionC extends Thread implements MVCC.Transaction {
 
     @Override
     public boolean checkChallengers(MVCC mvcc, MVCC.Transaction transaction) {
-        synchronized (challengers) {
-            for (MVCC.Transaction challenger : challengers) {
-                if (mvcc.shouldRestart(transaction, challenger)) {
-                    return true;
-                }
+
+
+        for (MVCC.Transaction challenger : challengers) {
+
+            if (mvcc.shouldRestart(transaction, challenger)) {
+                return true;
             }
         }
+
+
         return false;
     }
 

@@ -199,6 +199,7 @@ public class MVCC {
 
             writeLocks.put(key, lock);
         }
+        System.out.println(String.format("t%d write %d", transaction.getTimestamp(), value));
         transaction.addLock(key, lock);
         lock.lock();
         database.get(key).put(transaction.getTimestamp(), value);
@@ -211,6 +212,7 @@ public class MVCC {
 
     public Read read(Transaction transaction, String key) {
         ConcurrentHashMap<Integer, Integer> values = database.get(key);
+        Integer lastKnownCommit = committed.get(key);
 
         // System.out.println(String.format("%d Values in database for key %s %s  committed %d", transaction.getTimestamp(), key, values, committed.get(key)));
         ArrayList<Integer> versions = new ArrayList<>(values.keySet());
@@ -226,10 +228,10 @@ public class MVCC {
             return new Read(values.get(transaction.getTimestamp()), transaction.getTimestamp());
         }
         for (Integer version : versions) {
-            System.out.println(String.format("%d Inspecting version %d", transaction.getTimestamp(), version));
+            // System.out.println(String.format("t%d Inspecting version %d", transaction.getTimestamp(), version));
             if (version <= transaction.getTimestamp()) {
 
-                Integer lastKnownCommit = committed.get(key);
+
                 if (version >= lastCommit && version.equals(lastKnownCommit)) {
                     Integer read = values.get(version);
 
@@ -237,7 +239,7 @@ public class MVCC {
                     Transaction peek = rts.get(key);
 
                     if (peek != null && (shouldRestart(transaction, peek))) {
-                        System.out.println(String.format("%d %d should win %b", transaction.getTimestamp(), peek.getTimestamp(), peek.getAborted()));
+                        System.out.println(String.format("t%d %d should win %b", transaction.getTimestamp(), peek.getTimestamp(), peek.getAborted()));
 
                         return null;
                     }
@@ -253,7 +255,7 @@ public class MVCC {
                         peekTimestamp = peek.getTimestamp();
                     }
 
-                    System.out.println(String.format("%d %d read %s %d %d", System.nanoTime(), transaction.getTimestamp(), key, read, peekTimestamp));
+                    System.out.println(String.format("%d t%d read %s %d %d", System.nanoTime(), transaction.getTimestamp(), key, read, peekTimestamp));
                     if (read == null) {
                         System.out.println("ERROR");
                         throw new IllegalArgumentException();
@@ -262,7 +264,7 @@ public class MVCC {
                     transaction.addRead(readHandle);
                     return readHandle;
                 } else {
-                    System.out.println(String.format("%d %d Version is not equal to committed %d %d", transaction.getTimestamp(), version, lastKnownCommit, lastCommit));
+                    // System.out.println(String.format("t%d %d Version is not equal to committed %d %d", transaction.getTimestamp(), version, lastKnownCommit, lastCommit));
                 }
 
             } else {
@@ -315,7 +317,7 @@ public class MVCC {
             if (peek != null) {
                 peakTimestamp = peek.getTimestamp();
             }
-            System.out.println(String.format("%d %d begin commit (peek=%d)", System.nanoTime(), transaction.getTimestamp(), peakTimestamp));
+            System.out.println(String.format("%d t%d begin commit (peek=%d)", System.nanoTime(), transaction.getTimestamp(), peakTimestamp));
             if (peek != null && (shouldRestart(transaction, peek))) {
                 System.out.println(String.format("%d wins against %d", peek.getTimestamp(), transaction.getTimestamp()));
                 transaction.markRestart(true);
@@ -325,6 +327,7 @@ public class MVCC {
 
             if (touched.containsKey(writehandle.key)) {
                 List<Transaction> transactions = touched.get(writehandle.key);
+                System.out.println(String.format("t%d checking touched transactions", transaction.getTimestamp()));
                 synchronized (transactions) {
                     for (Transaction other : transactions) {
                         if (shouldRestart(transaction, other)) {
@@ -333,6 +336,7 @@ public class MVCC {
                         }
                     }
                 }
+                System.out.println(String.format("t%d finished checking touched transactions", transaction.getTimestamp()));
             }
 
             if (committed.containsKey(writehandle.key) && writehandle.timestamp != null && !committed.get(writehandle.key).equals(writehandle.timestamp)) {
@@ -343,10 +347,7 @@ public class MVCC {
 
 
         }
-
-
-
-        List<Transaction> challengers = transaction.getChallengers();
+        System.out.println(String.format("t%d finished committed checks", transaction.getTimestamp()));
         // System.out.println(String.format("%d Checking challengers %d", transaction.getTimestamp(), challengers.size()));
 
         if (transaction.checkChallengers(this, transaction)) {
@@ -354,7 +355,7 @@ public class MVCC {
             conflictType = "challenger";
         }
 
-        // System.out.println(String.format("%d Challengers checked", transaction.getTimestamp()));
+        System.out.println(String.format("t%d Challengers checked", transaction.getTimestamp()));
 
 
         precommit = max(transaction.getTimestamp(), precommit);
@@ -364,7 +365,7 @@ public class MVCC {
 
         if (transaction.getRestart()) {
 
-            System.out.println(String.format("%d Conflict %s Restarting transaction", transaction.getTimestamp(), conflictType));
+            System.out.println(String.format("t%d Conflict %s Restarting transaction", transaction.getTimestamp(), conflictType));
             transaction.setAborted(true);
 
 
@@ -401,7 +402,7 @@ public class MVCC {
             }
             lastCommit = transaction.getTimestamp();
 
-            System.out.println(String.format("%d %d won committed", System.nanoTime(), transaction.getTimestamp()));
+            System.out.println(String.format("%d t%d won committed", System.nanoTime(), transaction.getTimestamp()));
             transaction.setTimestamp(Integer.MAX_VALUE);
 
 
