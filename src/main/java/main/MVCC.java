@@ -105,12 +105,6 @@ public class MVCC {
         return true;
     }
 
-    public void validate(Transaction transaction) {
-        String lockKey = transaction.createLockKey();
-        if (!locks.containsKey(lockKey)) {
-            locks.put(lockKey, "locked");
-        }
-    }
 
     public void clear(Transaction transaction) {
         abort(transaction);
@@ -157,8 +151,6 @@ public class MVCC {
         List<Read> getReadHandles();
 
         boolean checkChallengers(MVCC mvcc, Transaction transaction);
-
-        String createLockKey();
 
         void markPrecommit();
 

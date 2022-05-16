@@ -145,16 +145,6 @@ class TransactionB extends Thread implements MVCC.Transaction {
     }
 
     @Override
-    public String createLockKey() {
-        StringBuilder b = new StringBuilder();
-        for (MVCC.Writehandle writehandle : writehandles) {
-            b.append(writehandle.key);
-        }
-        return b.toString();
-    }
-
-
-    @Override
     public void markPrecommit() {
         precommit = true;
     }

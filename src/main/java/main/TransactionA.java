@@ -60,7 +60,7 @@ class TransactionA extends Thread implements MVCC.Transaction {
                 if (writeC == null) {
                     break;
                 }
-                mvcc.validate(this);
+
                 mvcc.commit(this);
                 mvcc.dump();
                 break;
@@ -145,15 +145,6 @@ class TransactionA extends Thread implements MVCC.Transaction {
     @Override
     public boolean checkChallengers(MVCC mvcc, MVCC.Transaction transaction) {
         return false;
-    }
-
-    @Override
-    public String createLockKey() {
-        StringBuilder b = new StringBuilder();
-        for (MVCC.Writehandle writehandle : writehandles) {
-            b.append(writehandle.key);
-        }
-        return b.toString();
     }
 
     @Override

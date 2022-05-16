@@ -10,7 +10,7 @@ import java.util.concurrent.locks.Lock;
 class TransactionC extends Thread implements MVCC.Transaction {
 
     private final MVCC mvcc;
-    private final List<MVCC.Transaction> challengers;
+    private List<MVCC.Transaction> challengers;
     private final List<MVCC.Read> readhandles;
     private boolean aborted = true;
     private volatile int timestamp;
@@ -35,45 +35,51 @@ class TransactionC extends Thread implements MVCC.Transaction {
     @Override
     public void run() {
         super.run();
-        while (aborted) {
-            while (true) {
-                success = true;
-                attempts++;
-                int previous_timestamp = timestamp;
-                timestamp = mvcc.issue(this);
+        try {
+            while (aborted) {
+                while (true) {
+                    success = true;
+                    attempts++;
+                    int previous_timestamp = timestamp;
+                    timestamp = mvcc.issue(this);
 
-                System.out.println(String.format("Was previously aborted. New timestamp is %d previous was %d", timestamp, previous_timestamp));
+                    System.out.println(String.format("Was previously aborted. New timestamp is %d previous was %d", timestamp, previous_timestamp));
 
-                MVCC.Read A = mvcc.read(this, "A");
-                if (A == null) {
-                    success = false;
+                    MVCC.Read A = mvcc.read(this, "A");
+                    if (A == null) {
+                        success = false;
+                        break;
+                    }
+                    MVCC.Read B = mvcc.read(this, "B");
+                    if (B == null) {
+                        success = false;
+                        break;
+                    }
+                    MVCC.Writehandle writeC = mvcc.intend_to_write(this, "A", A.value + 1, A.timestamp);
+
+                    if (writeC == null) {
+                        success = false;
+                        break;
+                    }
+
+                    MVCC.Writehandle writeD = mvcc.intend_to_write(this, "B", B.value + 1, B.timestamp);
+
+                    if (writeD == null) {
+                        success = false;
+                        break;
+                    }
+
+                    mvcc.commit(this);
+                    mvcc.dump();
                     break;
+
+
                 }
-                MVCC.Read B = mvcc.read(this, "B");
-                if (B == null) {
-                    success = false;
-                    break;
-                }
-                MVCC.Writehandle writeC = mvcc.intend_to_write(this,"A", A.value + 1, A.timestamp);
-
-                if (writeC == null) {
-                    success = false;
-                    break;
-                }
-
-                MVCC.Writehandle writeD = mvcc.intend_to_write(this,"B", B.value + 1, B.timestamp);
-
-                if (writeD == null) {
-                    success = false;
-                    break;
-                }
-                mvcc.validate(this);
-                mvcc.commit(this);
-                mvcc.dump();
-                break;
-
-
             }
+        } catch (Throwable exception) {
+            System.out.println(exception.getMessage());
+            exception.printStackTrace();
+            System.exit(1);
         }
     }
 
@@ -134,7 +140,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
 
     @Override
     public void addChallenger(MVCC.Transaction transaction) {
-
+        assert(transaction != null);
         challengers.add(transaction);
 
     }
@@ -157,27 +163,18 @@ class TransactionC extends Thread implements MVCC.Transaction {
     @Override
     public boolean checkChallengers(MVCC mvcc, MVCC.Transaction transaction) {
 
-
-        for (MVCC.Transaction challenger : challengers) {
-
-            if (mvcc.shouldRestart(transaction, challenger)) {
-                return true;
+        synchronized (challengers) {
+            for (MVCC.Transaction challenger : challengers) {
+                assert (challenger != null);
+                if (mvcc.shouldRestart(transaction, challenger)) {
+                    return true;
+                }
             }
         }
 
 
         return false;
     }
-
-    @Override
-    public String createLockKey() {
-        StringBuilder b = new StringBuilder();
-        for (MVCC.Writehandle writehandle : writehandles) {
-            b.append(writehandle.key);
-        }
-        return b.toString();
-    }
-
 
     @Override
     public void markPrecommit() {
