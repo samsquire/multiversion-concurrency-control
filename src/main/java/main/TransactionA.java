@@ -86,7 +86,7 @@ class TransactionA extends Thread implements MVCC.Transaction {
     }
 
     @Override
-    public void clear() {
+    public void clear(MVCC mvcc) {
         writehandles.clear();
         cancelled = false;
         challengers.clear();

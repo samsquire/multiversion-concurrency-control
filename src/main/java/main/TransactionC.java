@@ -93,7 +93,7 @@ class TransactionC extends Thread implements MVCC.Transaction {
     }
 
     @Override
-    public void clear() {
+    public void clear(MVCC mvcc) {
         writehandles.clear();
         cancelled = false;
         challengers.clear();
@@ -103,6 +103,8 @@ class TransactionC extends Thread implements MVCC.Transaction {
         for (Map.Entry<String, Lock> entry : locks.entrySet()) {
             entry.getValue().unlock();
         }
+        locks.clear();
+
     }
 
     @Override

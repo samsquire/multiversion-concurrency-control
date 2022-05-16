@@ -45,7 +45,7 @@ public class MVCC {
 
         int token = this.counter;
         this.counter = this.counter + 1;
-
+        abort(transaction);
         return token;
 
     }
@@ -112,6 +112,10 @@ public class MVCC {
         }
     }
 
+    public void clear(Transaction transaction) {
+        abort(transaction);
+    }
+
 
     class Writehandle {
         String key;
@@ -132,7 +136,7 @@ public class MVCC {
 
         void setAborted(boolean aborted);
 
-        void clear();
+        void clear(MVCC mvcc);
 
         void addWrite(Writehandle writehandle);
 
@@ -366,25 +370,9 @@ public class MVCC {
 
 
         if (transaction.getRestart()) {
-
             System.out.println(String.format("t%d Conflict %s Restarting transaction", transaction.getTimestamp(), conflictType));
-            transaction.setAborted(true);
-
-
-            for (Writehandle writehandle : transaction.getWritehandles()) {
-                database.get(writehandle.key).remove(transaction.getTimestamp());
-                if (rts.get(writehandle.key) == transaction) {
-                    rts.remove(writehandle.key);
-                }
-                List<Transaction> transactions = touched.get(writehandle.key);
-                synchronized (transactions) {
-                    transactions.remove(transaction);
-                }
-                
-            }
-            transaction.clear();
-
-
+            abort(transaction);
+            Thread.yield();
         } else {
 
             System.out.println(String.format("%d Passed checks, committing...", transaction.getTimestamp()));
@@ -411,6 +399,25 @@ public class MVCC {
 
         }
 //        }
+
+    }
+
+    public void abort(Transaction transaction) {
+
+        transaction.setAborted(true);
+
+
+        for (Writehandle writehandle : transaction.getWritehandles()) {
+            database.get(writehandle.key).remove(transaction.getTimestamp());
+            if (rts.get(writehandle.key) == transaction) {
+                rts.remove(writehandle.key);
+            }
+            List<Transaction> transactions = touched.get(writehandle.key);
+            transactions.remove(transaction);
+
+
+        }
+        transaction.clear(this);
 
     }
 
