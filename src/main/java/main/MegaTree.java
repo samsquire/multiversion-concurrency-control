@@ -1,7 +1,6 @@
 package main;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -25,6 +24,7 @@ public class MegaTree<V> {
     private int precommit;
 
 
+
     public MegaTree(int size, int version, V value, boolean earlyAborts) {
         this.value = value;
         this.version = version;
@@ -44,8 +44,8 @@ public class MegaTree<V> {
         for (String key : keys) {
             System.out.println(String.format("%s doesn't exist, creating", key));
             LRHashMap<Integer, Version<V>> newdata = new LRHashMap<>(size);
-            database.put(key, newdata);
-            touched.put(key, Collections.synchronizedList(new ArrayList<MegaTree.Transaction>()));
+            database.put(key, newdata, 0);
+            touched.put(key, Collections.synchronizedList(new ArrayList<MegaTree.Transaction>()), 0);
 
         }
     }
@@ -53,9 +53,9 @@ public class MegaTree<V> {
     public boolean isValue() {
         return value != null;
     }
+
     public Writehandle put(int threadIndex, Transaction transaction, String key, V value, Integer timestamp) {
-        
-        
+
 
         String conflictType = "";
         boolean restart = false;
@@ -79,13 +79,13 @@ public class MegaTree<V> {
         } else {
             lock = (ReentrantReadWriteLock.WriteLock) rwlock.writeLock();
 
-            writeLocks.put(key, lock);
+            writeLocks.put(key, lock, transaction.getTimestamp());
         }
         System.out.println(String.format("t%d write %d", transaction.getTimestamp(), value));
         transaction.addLock(threadIndex, key, lock);
         lock.lock();
-        database.get(reader, key).put(transaction.getTimestamp(), new Version<V>(transaction.getTimestamp(), transaction.getTimestamp(), value));
-        wts.put(key, transaction);
+        database.get(reader, key).put(transaction.getTimestamp(), new Version<V>(transaction.getTimestamp(), transaction.getTimestamp(), value), transaction.getTimestamp());
+        wts.put(key, transaction, timestamp);
 
         MegaTree.Writehandle writehandle = new MegaTree.Writehandle(key, timestamp);
         transaction.addWrite(writehandle);
@@ -94,6 +94,7 @@ public class MegaTree<V> {
 
     public Read<Version<V>> get(int threadIndex, String key, Transaction transaction) {
         LRHashMap.Reader reader = new LRHashMap.Reader(threadIndex);
+        int timestamp = transaction.getTimestamp();
         LRHashMap<Integer, Version<V>> values = database.get(reader, key);
         Integer lastKnownCommit = committed.get(reader, key);
 
@@ -134,7 +135,7 @@ public class MegaTree<V> {
                     }
 
 
-                    rts.put(key, transaction);
+                    rts.put(key, transaction, timestamp);
                     touched.get(reader, key).add(transaction);
                     int peekTimestamp = 0;
                     if (peek != null) {
@@ -160,7 +161,7 @@ public class MegaTree<V> {
         System.out.println(String.format("%d No versions valid", transaction.getTimestamp()));
         return null;
     }
-    
+
     public void commit(int threadIndex, Transaction<V> transaction) {
         transaction.markPrecommit();
 
@@ -227,7 +228,6 @@ public class MegaTree<V> {
         // transaction.markSuccessful();
 
 
-
         if (transaction.getRestart()) {
             System.out.println(String.format("t%d Conflict %s Restarting transaction", transaction.getTimestamp(), conflictType));
             abort(threadIndex, transaction);
@@ -241,7 +241,7 @@ public class MegaTree<V> {
             for (Writehandle writehandle : transaction.getWritehandles()) {
 
                 System.out.println(String.format("t%d Updating committed...", transaction.getTimestamp()));
-                committed.put(writehandle.key, transaction.getTimestamp());
+                committed.put(writehandle.key, transaction.getTimestamp(), transaction.getTimestamp());
                 System.out.println(String.format("t%d Wrote committed", transaction.getTimestamp()));
                 System.out.println(String.format("%d t%d write %s %d", System.nanoTime(), transaction.getTimestamp(), writehandle.key, database.get(reader, writehandle.key).get(reader, transaction.getTimestamp()).value));
                 if (rts.get(reader, writehandle.key) == transaction) {
@@ -276,10 +276,14 @@ public class MegaTree<V> {
             }
             List<MegaTree.Transaction> transactions = touched.get(new LRHashMap.Reader(threadIndex), writehandle.key);
             transactions.remove(transaction);
+            ReentrantReadWriteLock.WriteLock lock = transaction.getLock(threadIndex, writehandle.key);
+
+            lock.unlock();
 
 
         }
-        transaction.clear(threadIndex,this);
+        transaction.clear(threadIndex, this);
+
 
     }
 
@@ -379,8 +383,9 @@ public class MegaTree<V> {
 
 
     }
+
     public boolean shouldRestart(MegaTree.Transaction transaction, MegaTree.Transaction peek) {
-        boolean defeated =  (((peek.getTimestamp() < transaction.getTimestamp() ||
+        boolean defeated = (((peek.getTimestamp() < transaction.getTimestamp() ||
                 (transaction.getNumberOfAttempts() < peek.getNumberOfAttempts())) && peek.getPrecommit()) ||
                 peek.getPrecommit() && (peek.getTimestamp() > transaction.getTimestamp() ||
                         (peek.getNumberOfAttempts() > transaction.getNumberOfAttempts() && peek.getPrecommit())
@@ -452,6 +457,7 @@ public class MegaTree<V> {
             }
         }
     }
+
     public Integer getHighestVersion(int threadIndex, String key) {
         LRHashMap.Reader reader = new LRHashMap.Reader(threadIndex);
 

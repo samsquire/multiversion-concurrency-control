@@ -4,10 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 public class MegaTreeTransaction<V> extends Thread implements MegaTree.Transaction<V> {
     private final int size;
@@ -41,23 +38,27 @@ public class MegaTreeTransaction<V> extends Thread implements MegaTree.Transacti
     }
 
     public void run() {
+        try {
+            while (aborted) {
+                while (true) {
+                    timestamp = megatree.issue(threadIndex, this);
+                    System.out.println(String.format("%d timestamp restarting", timestamp));
+                    MegaTree<V>.Read<MegaTree<V>.Version<V>> lastCounter = megatree.get(threadIndex, "a", this);
+                    if (lastCounter == null) {
+                        break;
+                    }
+                    MegaTree<V>.Version<V> lastVersion = lastCounter.value;
 
-        while (aborted) {
-            while (true) {
-                timestamp = megatree.issue(threadIndex, this);
-                System.out.println(String.format("%d timestamp restarting", timestamp));
-                MegaTree<V>.Read<MegaTree<V>.Version<V>> lastCounter = megatree.get(threadIndex, "a", this);
-                if (lastCounter == null) {
+                    Integer value = (Integer) lastVersion.value;
+
+                    megatree.put(threadIndex, this, "a", (V) new Integer(value + 1), lastCounter.timestamp);
+                    megatree.commit(threadIndex, this);
                     break;
                 }
-                MegaTree<V>.Version<V> lastVersion = lastCounter.value;
-
-                Integer value = (Integer) lastVersion.value;
-
-                megatree.put(threadIndex, this, "a", (V) new Integer(value + 1), lastCounter.timestamp);
-                megatree.commit(threadIndex, this);
-                break;
             }
+        } catch (Throwable e) {
+            e.printStackTrace();
+            System.exit(1);
         }
     }
 
@@ -85,11 +86,7 @@ public class MegaTreeTransaction<V> extends Thread implements MegaTree.Transacti
         readhandles.clear();
         precommit = false;
         restart = false;
-        for (Map.Entry<String, ReentrantReadWriteLock.WriteLock> entry : locks.entrySet(new LRHashMap.Reader(threadIndex))) {
-            ReentrantReadWriteLock.WriteLock lock = entry.getValue();
-            lock.unlock();
 
-        }
         locks.clear();
 
     }
@@ -194,7 +191,7 @@ public class MegaTreeTransaction<V> extends Thread implements MegaTree.Transacti
 
     @Override
     public void addLock(int threadIndex, String key, ReentrantReadWriteLock.WriteLock lock) {
-        locks.put(key, lock);
+        locks.put(key, lock, timestamp);
     }
 
     @Override

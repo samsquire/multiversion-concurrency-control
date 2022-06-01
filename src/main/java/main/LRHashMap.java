@@ -30,10 +30,16 @@ public class LRHashMap<K,V> {
 
     @Contended("readersVersion")
     private volatile AtomicInteger[][] readersVersion = new AtomicInteger[2][];
-    private AtomicInteger versionIndex;
+    private ThreadLocal<Integer> versionIndex = new ThreadLocal<Integer>() {
+        @Override
+        protected Integer initialValue() {
+            return 0;
+        }
+    };
     public LRHashMap(int size) {
         this.size = size;
-        this.versionIndex = new AtomicInteger(0);
+
+
         this.lock = writerLock.writeLock();
         for (int i = 0 ; i < readersVersion.length; i++) {
             readersVersion[i] = new AtomicInteger[size];
@@ -48,7 +54,10 @@ public class LRHashMap<K,V> {
         readersVersion[versionIndex.get()][reader.threadIndex].set(READING);
     }
     public void depart(Reader reader) {
+
         readersVersion[versionIndex.get()][reader.threadIndex].set(NOT_READING);
+        // System.out.println(String.format("%d departed", reader.threadIndex));
+
     }
 
     public Set<Map.Entry<K, V>> entrySet(LRHashMap.Reader reader) {
@@ -75,7 +84,7 @@ public class LRHashMap<K,V> {
         else {
             value = right.keySet();
         }
-        depart(reader);
+
         return value;
     }
 
@@ -103,12 +112,13 @@ public class LRHashMap<K,V> {
         else {
             value = right.containsKey(key);
         }
+
         depart(reader);
         return value;
     }
 
-    public void put(K key, V value) {
-        System.out.println("Put lock");
+    public void put(K key, V value, int timestamp) {
+        System.out.println(String.format("t%d %s %s Put lock", timestamp, key, value.toString()));
         lock.lock();
         int previousMode = leftRight.get();
         if (previousMode == LEFT) {
@@ -128,12 +138,12 @@ public class LRHashMap<K,V> {
         int previousVersionIndex = versionIndex.get();
         int nextVersionIndex = (previousVersionIndex + 1) % 2;
         while (!nobodyReading(nextVersionIndex)) {
-            System.out.println("Someone is reading");
+            System.out.println(String.format("Someone is reading, t%d is waiting", timestamp));
             Thread.yield();
         }
         versionIndex.set(nextVersionIndex);
         while (!nobodyReading(previousVersionIndex)) {
-            System.out.println("Someone is reading");
+            System.out.println(String.format("Someone is reading, t%d is waiting", timestamp));
             Thread.yield();
         }
 
