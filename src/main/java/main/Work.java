@@ -2,49 +2,67 @@ package main;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 public class Work extends Thread {
-    private static int stage1;
-    private final int size;
-    private final List<WorkItem> workItems;
 
-    public Work(int size, List<WorkItem> workItems) {
+    private final int size;
+    private final CountDownLatch stage1;
+    private final CountDownLatch stage2;
+    private List<Thread> threads;
+    private final List<WorkItem> workItems1;
+    private final List<WorkItem> workItems2;
+
+    public Work(int size, CountDownLatch stage1, CountDownLatch stage2, List<WorkItem> workItems1, List<WorkItem> workItems2) {
         this.size = size;
-        this.workItems = workItems;
-        this.stage1 = size;
+        this.stage1 = stage1;
+        this.stage2 = stage2;
+
+        this.workItems1 = workItems1;
+        this.workItems2 = workItems2;
+
     }
 
     public void run() {
-        for (WorkItem work : workItems) {
+        for (WorkItem work : workItems1) {
             work.work();
         }
-        while (stage1 > 0) {
-            synchronized (workItems) {
-                workItems.notifyAll();
-                try {
-                    workItems.wait();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                workItems.notifyAll();
-                stage1--;
-            }
+        stage1.countDown();
+        try {
+            stage1.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
-        System.out.println("Finished");
+        System.out.println("Finished stage1");
+        stage2.countDown();
+        try {
+            stage2.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("Finished stage2");
     }
     public static void main(String[] args) throws InterruptedException {
-        List<Work> threads = new ArrayList<>();
-        List<WorkItem> workItems = new ArrayList<>();
+        List<Thread> threads = new ArrayList<>();
+        List<WorkItem> workItems1 = new ArrayList<>();
+        List<WorkItem> workItems2 = new ArrayList<>();
         for (int i = 0 ; i < 10000; i++) {
-            workItems.add(new WorkItem(i));
+            workItems1.add(new WorkItem(i));
+            workItems2.add(new WorkItem(i));
         }
+        CountDownLatch stage1 = new CountDownLatch(5);
+        CountDownLatch stage2 = new CountDownLatch(5);
         for (int i = 0 ; i < 5; i++) {
-            Work work = new Work(5, workItems);
-            work.start();
+
+            Work work = new Work(5, stage1, stage2, workItems1, workItems2);
+
             threads.add(work);
         }
+        for (Thread thread : threads) {
+            thread.start();
+        }
 
-        for (Work work : threads) {
+        for (Thread work : threads) {
             work.join();
         }
 

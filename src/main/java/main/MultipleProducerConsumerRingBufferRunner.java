@@ -5,7 +5,7 @@ import java.util.List;
 
 public class MultipleProducerConsumerRingBufferRunner {
     public static void main(String[] args) throws InterruptedException {
-        RingBuffer ringbuffer = new RingBuffer(200);
+        RingBuffer ringbuffer = new RingBuffer(50);
         List<Thread> threads = new ArrayList<>();
         for (int i = 0 ; i < 100; i++) {
             RingBufferWriter ringBufferWriter = new RingBufferWriter(ringbuffer);
