@@ -1,9 +1,5 @@
 package main;
 
-
-
-import sun.misc.Contended;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -28,7 +24,7 @@ public class LRHashMap<K,V> {
     private volatile HashMap<K,V> left = new HashMap<K,V>();
     private volatile HashMap<K,V> right = new HashMap<K,V>();
 
-    @Contended("readersVersion")
+
     private volatile AtomicInteger[][] readersVersion = new AtomicInteger[2][];
     private ThreadLocal<Integer> versionIndex = new ThreadLocal<Integer>() {
         @Override

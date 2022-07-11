@@ -9,24 +9,22 @@
 
 package main;
 
-import sun.misc.Contended;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RingBuffer {
     private final int size;
-    @Contended("lasthead")
+
     private volatile AtomicInteger last_head = new AtomicInteger(1);
-    @Contended("lasttail")
+
     private volatile AtomicInteger last_tail = new AtomicInteger(1);
     private int[] data;
     private List<RingBufferUserThread> consumerThreads;
     private List<RingBufferUserThread> producerThreads;
-    @Contended("head")
+
     private volatile AtomicInteger head = new AtomicInteger(0);
-    @Contended("tail")
+
     private volatile AtomicInteger tail = new AtomicInteger(0);
 
     public RingBuffer(int size) {
