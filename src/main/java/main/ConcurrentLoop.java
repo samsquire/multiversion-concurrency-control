@@ -2,30 +2,46 @@ package main;
 
 import java.util.*;
 
-public class ConcurrentLoop<T> extends Thread {
-    private List<List<T>> collections;
-    private final String name;
-    private final Map<String, ConcurrentLoop<T>> context;
-    private final List<ConcurrentLoop<T>> downstreams;
-    private int n;
-    private final LoopRunner<T> func;
+public class ConcurrentLoop {
+    private List<List<StringOrConcurrentLoop>> collections;
+    public final String name;
+    protected final Map<String, ConcurrentLoop> context;
+    protected final List<ConcurrentLoop> downstreams;
+    protected final LoopRunner func;
     private final List<Integer> current;
-    private final List<List<T>> pending;
+    private final List<List<StringOrConcurrentLoop>> pending;
+    public Map<Integer, Integer> timesCalled = new HashMap<>();
+    public Map<String, StringOrConcurrentLoop> reuse;
 
-    public interface LoopRunner<T> {
-        T run(List<ConcurrentLoop<T>> downstreams, List<T> items);
+
+    public void registerChain(String parentName, StringOrConcurrentLoop stringOrConcurrentLoop) {
+        reuse.put(parentName, stringOrConcurrentLoop);
+    }
+    public boolean isReuse(String parentName) {
+        return reuse.containsKey(parentName);
     }
 
-    public ConcurrentLoop(String name, List<List<T>> collections, LoopRunner<T> func) {
+    public StringOrConcurrentLoop reuse(String parentName) {
+        return reuse.get(parentName);
+    }
+
+
+    public interface LoopRunner {
+        StringOrConcurrentLoop run(ConcurrentLoop parent,
+              List<ConcurrentLoop> downstreams,
+              List<StringOrConcurrentLoop> items);
+    }
+
+    public ConcurrentLoop(String name, List<List<StringOrConcurrentLoop>> collections, LoopRunner func) {
         this.collections = collections;
         this.name = name;
-        this.n = 0;
         this.func = func;
         this.context = new HashMap<>();
         this.downstreams = new ArrayList<>();
         this.pending = new ArrayList<>();
         this.current = new ArrayList<Integer>();
-        for (List<T> collection : collections) {
+        this.reuse = new HashMap<>();
+        for (List<StringOrConcurrentLoop> collection : collections) {
             this.current.add(0);
         }
     }
@@ -41,38 +57,48 @@ public class ConcurrentLoop<T> extends Thread {
         return total;
     }
 
-    public void enqueue(int index, T item, ConcurrentLoop ticker) {
+    public void enqueue(int index, StringOrConcurrentLoop item, ConcurrentLoop ticker) {
         if (!(this.pending.size() > index)) {
-            pending.add(new ArrayList<T>());
+            pending.add(new ArrayList<StringOrConcurrentLoop>());
         }
         this.pending.get(index).add(item);
 
     }
 
-    public void link(ConcurrentLoop<T> ticker) {
+    public void link(ConcurrentLoop ticker) {
         this.downstreams.add(ticker);
     }
 
     public void reload() {
         this.collections = this.pending;
-
-        this.n = 0;
     }
 
-    public T tick() {
+    public StringOrConcurrentLoop tick(int n) {
+        List<List<StringOrConcurrentLoop>> collections = this.collections;
+        if (collections.size() == 0) {
+            return new StringOrConcurrentLoop(null, null);
+        }
+        if (!timesCalled.containsKey(n)) {
+            timesCalled.put(n, 1);
+        } else {
+            timesCalled.put(n, timesCalled.get(n) + 1);
+        }
 
-        List<T> items = new ArrayList<>();
-        int n = this.n;
+
+        List<StringOrConcurrentLoop> items = new ArrayList<>();
+
         List<Integer> indexes = new ArrayList<>();
 
 
         for (int i = collections.size() - 1; i >= 0; i--) {
-            List<T> collection = collections.get(i);
+            List<StringOrConcurrentLoop> collection = collections.get(i);
             int size = collection.size();
-            n = n / size;
+            int newN = n / size;
             int r = n % size;
+            n = newN;
             indexes.add(r);
         }
+
 
 
         for (int loop = 0; loop < collections.size(); loop++) {
@@ -80,18 +106,16 @@ public class ConcurrentLoop<T> extends Thread {
             for (int mod = 0; mod < collections.size(); mod++) {
                 previous = previous + indexes.get(mod);
             }
-
-
             indexes.set(loop, previous % collections.get(loop).size());
         }
 
-        // for loop, item in enumerate(self.indexes):
+        // create string item
         for (int loop = 0; loop < indexes.size(); loop++) {
             items.add(collections.get(loop).get(indexes.get(loop)));
         }
+        Collections.reverse(items);
 
-        this.n = this.n + 1;
-        return func.run(downstreams, items);
+        return func.run(this, downstreams, items);
 
     }
 
