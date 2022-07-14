@@ -12,13 +12,14 @@ public class ConcurrentLoopJoin extends ConcurrentLoop {
     private final ConcurrentHashMap<String, List<List<StringOrConcurrentLoop>>> waits_values;
     private final ConcurrentHashMap<String, ConcurrentHashMap<ConcurrentLoop, List<StringOrConcurrentLoop>>> destinations;
     private final List<List<ConcurrentLoop>> wait_lists;
-
+    private final Map<List<ConcurrentLoop>, List<List<StringOrConcurrentLoop>>> wait_contents;
     public ConcurrentLoopJoin(String name, List<List<StringOrConcurrentLoop>> collections, ConcurrentLoop.LoopRunner func) {
         super(name, collections, func);
         this.wait_size = new HashMap<String, Integer>();
         this.waits_values = new ConcurrentHashMap<String, List<List<StringOrConcurrentLoop>>>();
         this.destinations = new ConcurrentHashMap<String, ConcurrentHashMap<ConcurrentLoop, List<StringOrConcurrentLoop>>>();
         this.wait_lists = new ArrayList<>();
+        this.wait_contents = new HashMap<>();
     }
 
     public void wait_for(String name, List<ConcurrentLoop> values) {
@@ -34,16 +35,27 @@ public class ConcurrentLoopJoin extends ConcurrentLoop {
             Map<ConcurrentLoop, List<StringOrConcurrentLoop>> concurrentLoopListMap = destinations.get(name);
             concurrentLoopListMap.put(key, lists.get(i));
         }
-        wait_lists.add(values);
+        synchronized (wait_lists) {
+            wait_lists.add(values);
+        }
+        wait_contents.put(values, waits_values.get(name));
     }
 
     public int size() {
         int total = 0;
-        for (Map.Entry<String, ConcurrentHashMap<ConcurrentLoop, List<StringOrConcurrentLoop>>> entry : destinations.entrySet()) {
-            for (Map.Entry<ConcurrentLoop, List<StringOrConcurrentLoop>> items : entry.getValue().entrySet()) {
-                total += items.getValue().size();
+        synchronized (wait_lists) {
+            for (List<ConcurrentLoop> wait_list : wait_lists) {
+                List<List<StringOrConcurrentLoop>> all_fields = wait_contents.get(wait_list);
+                int desiredSize = wait_list.size();
+                int min = Integer.MAX_VALUE;
+                for (int i = 0; i < all_fields.size(); i++) {
+                    min = Math.min(min, all_fields.get(i).size());
+                }
+                total += min;
+
             }
         }
+
         return total;
     }
 

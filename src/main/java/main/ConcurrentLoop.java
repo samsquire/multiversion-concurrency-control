@@ -1,5 +1,7 @@
 package main;
 
+import org.apache.groovy.json.internal.CharBuf;
+
 import java.util.*;
 
 public class ConcurrentLoop {
@@ -12,6 +14,7 @@ public class ConcurrentLoop {
     private final List<List<StringOrConcurrentLoop>> pending;
     public Map<Integer, Integer> timesCalled = new HashMap<>();
     public Map<String, StringOrConcurrentLoop> reuse;
+    public List<Integer> threads = new ArrayList<>();
 
 
     public void registerChain(String parentName, StringOrConcurrentLoop stringOrConcurrentLoop) {
@@ -119,5 +122,8 @@ public class ConcurrentLoop {
 
     }
 
+    public void addThread(int threadNum) {
+        this.threads.add(threadNum);
+    }
 
 }
