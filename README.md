@@ -19,19 +19,29 @@ At commit time, we check all the transactions that have seen the value. The lowe
 Naming ideas that other people shall understand can be difficult.
 I'm going to use this opportunity to try explain something that can be complicated with the ambiguousness of English.
 Here is an example from something I am working on. I am working on parallelising nested loops.
+```
+
 for letter in letters:
  for number in numbers:
   for symbol in symbols:
    print(letter + number + symbol)
+```
+
 If letters, numbers and symbols are very large and the inner loop does not depend on previous iterations, we can parallelise it. We can separate the lists into chunks and assign each chunk to a thread for processing.
+
 What if we want to keep processing after all threads are finished? We need some idea of waiting for completion of loops.
+
 I have a shared collection of loop objects over all threads. Each thread loops over this collection repeatedly but only evaluates threads that fall within that thread's chunk.
+
 So if we have 1,000,000,000 records in each list and 1000 threads each thread shall process 10,000,000 items.
+
 The first thread processes items 0 — 10,000,000. The second thread 10,000,000 — 20,000,000 and the third thread 30,000,000 to 40,000,000 and so on until 1 billion. All at the same time simultaneously in parallel.
+
 If we want to wait for two other loops to finish, I have an API that links loops together to wait for multiple items before iterating.
-I created methods on the loop objects called “wait_for” and “link".
-Link is used when telling a loop to send items to its argument. Wait for is the reverse relationship — to wait for inputs from each of these loops.
+
+I created methods on the loop objects called “wait_for” and “link". Link is used when telling a loop to send items to its argument. Wait for is the reverse relationship — to wait for inputs from each of these loops.
 I call the loop objects ConcurrentLoops.
+
 I can execute loops out of order and in parallel and load balanced. When I say load balanced, each subloop is iterated concurrently. So in my example above all letters, numbers and symbol loops are executed concurrently.
 Usually the innermost loop finishes before the next iteration of the outerloop. In my design this isn't the case. Every loop is evenly spread out.
 
