@@ -14,7 +14,7 @@ When two transactions begin concurrently, they are numbered monotonically increa
 
 At commit time, we check all the transactions that have seen the value. The lowest transaction ID wins. Everybody else has to abort and try again. The only exception to this if a transaction was faster than the other and got ahead of everybody else, in which case the younger transaction will be the one that aborts.
 
-# Concurrent loops
+# Concurrent loop ConcurrentLoop.java and tick.py
 
 Naming ideas that other people shall understand can be difficult.
 I'm going to use this opportunity to try explain something that can be complicated with the ambiguousness of English.
