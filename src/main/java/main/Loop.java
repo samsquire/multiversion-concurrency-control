@@ -32,8 +32,9 @@ public class Loop extends Thread {
 
 
     public void run() {
+        System.out.println(String.format("Thread %d started", key));
         while (!stopped) {
-            System.out.println(String.format("Thread %d started", key));
+
             if (reading) {
                 // System.out.println(String.format("%d Do reading", key));
 
@@ -43,10 +44,10 @@ public class Loop extends Thread {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                System.out.println("Thread finished reading");
+                // System.out.println("Thread finished reading");
                 doneRead = true;
                 while (blockedReading) {
-                    System.out.println("Waiting for other readers to finish");
+                    // System.out.println("Waiting for other readers to finish");
                     blockingReading = true;
                 }
                 reading = false;
@@ -56,7 +57,7 @@ public class Loop extends Thread {
 
 
             while (blocked) {
-                System.out.println("Waiting");
+                // System.out.println("Waiting");
                 blocking = true;
             }
             // System.out.println("Running");

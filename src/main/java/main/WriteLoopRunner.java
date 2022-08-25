@@ -39,6 +39,6 @@ public class WriteLoopRunner {
             }
             assert expectedSize == count : String.format("%d != %d", expectedSize, count);
         }
-
+        System.out.println(String.format("Number of cycles: %d", writeLoop.cycles));
     }
 }

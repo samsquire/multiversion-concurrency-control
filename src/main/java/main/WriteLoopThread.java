@@ -8,6 +8,7 @@ public class WriteLoopThread extends Thread {
 
     private final List<Loop> loops;
     private LinkedList<Integer> list;
+    public int cycles;
 
     WriteLoopThread(List<Loop> loops, LinkedList<Integer> list) {
         this.loops = loops;
@@ -23,7 +24,8 @@ public class WriteLoopThread extends Thread {
     public void run() {
         boolean allempty = false;
         while (!stopped || !allempty) {
-            System.out.println("read mode");
+
+            // System.out.println("read mode");
             for (Loop loop : loops) {
                 loop.markReading();
             }
@@ -37,7 +39,7 @@ public class WriteLoopThread extends Thread {
                         count--;
                     }
                 }
-                System.out.println(String.format("Waiting for all thread to read... %d", count));
+                // System.out.println(String.format("Waiting for all thread to read... %d", count));
             }
             for (Loop loop : loops) {
                 // wait for reading to synchronize
@@ -50,7 +52,7 @@ public class WriteLoopThread extends Thread {
                 loop.unblockReading();
             }
 
-            System.out.println("write mode");
+            // System.out.println("write mode");
             allempty = true;
             boolean allwrote = false;
             while (!allwrote) {
@@ -77,7 +79,7 @@ public class WriteLoopThread extends Thread {
 
                 }
             }
-
+            cycles++;
         }
     }
 }
