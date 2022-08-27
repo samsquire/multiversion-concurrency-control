@@ -223,7 +223,7 @@ class Main extends Thread {
                 assert main.reading[main.threadNum] == true;
 
 
-                for (Message message : inqueue) {
+                for (Message message : main.inqueue) {
 
                     main.requestCount++;
                     // System.out.println(String.format("%d received %d from %d", threadNum, message.body, message.from));
