@@ -10,9 +10,15 @@ This is my understanding of the Raft algorithm. I used the Raft paper to impleme
 
 # Main.java - parallel actor model
 
-This is an parallel multithreadeded actor model. Run `Main.java` to run it. I get between 1 million - 2.3 million requests per second on my Intel(R) Core(TM) i7-10710U CPU @ 1.10GHz, 1608 Mhz, 6 Core(s), 12 Logical Processor(s). This places communication costs between ~500-1000 nanoseconds.
+This is an parallel multithreadeded actor model. Run `Main.java` to run it. I get between 100 million requests per second on my Intel(R) Core(TM) i7-10710U CPU @ 1.10GHz, 1608 Mhz, 6 Core(s), 12 Logical Processor(s). This places communication costs between ~500-1000 nanoseconds.
 
 The model checker is written in Python in a different repository, see [multithreaded-model-checker](https://github.com/samsquire/multithreaded-model-checker)
+
+# Actor2 - parallel actor model 2
+
+This is another parallel multithreaded actor model. Run `Actor2.java` to run it. I get around 900 million requests per second with this model.
+
+This program allocates all 10 million messages in advance and communicates them with lists of lists which avoid the parallel iterator problem. 
 
 # Multiversion concurrency control - How it works
 

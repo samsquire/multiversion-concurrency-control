@@ -9,6 +9,7 @@ class Main extends Thread {
     public AtomicInteger next = new AtomicInteger(0);
     public AtomicInteger localNext = new AtomicInteger(0);
     public AtomicInteger sendNext = new AtomicInteger(0);
+    public AtomicInteger freeInbox = new AtomicInteger(0);
     public volatile boolean running = true;
     public int threadNum;
     private HashMap<Integer, ArrayList<Message>> outqueue;
@@ -22,6 +23,7 @@ class Main extends Thread {
     private boolean outgoing = false;
     private int sent;
     private int delivered;
+    List<Integer> removals;
 
     public void setThreads(List<Main> threads) {
         this.threads = threads;
@@ -30,6 +32,7 @@ class Main extends Thread {
         for (int i = 0 ; i < threadsSize; i++) {
             this.outqueue.put(i, new ArrayList<>(10000));
         }
+
 
     }
 
@@ -52,6 +55,7 @@ class Main extends Thread {
 
         }
         this.reading = new boolean[mailboxes][size];
+        this.removals = new ArrayList<>(10000);
 
 
     }
@@ -107,16 +111,20 @@ class Main extends Thread {
 
     }
 
-    public boolean tryConnectToThread(Main main, int inbox) {
+    public boolean tryConnectToThread(Main main, int startMailbox) {
         boolean success = false;
-        List<Integer> removals = new ArrayList<>();
-        boolean foundMailbox = false;
+
+
         for (Map.Entry<Integer, ArrayList<Message>> entry : outqueue.entrySet()) {
+            boolean foundMailbox = false;
+            boolean subfail = false;
+            boolean fail = false;
             List<Message> messages = entry.getValue();
             int messagesSize = messages.size();
             Main thisThread = threads.get(entry.getKey());
-            boolean fail = false;
-            for (int mailbox = inbox; mailbox < main.mailboxes; mailbox++) {
+
+            for (int mb = startMailbox; mb < main.mailboxes; mb++) {
+                int inbox = (mb + main.mailboxes) % main.mailboxes;
                 for (int j = 0; j < main.threadNum - 1; j++) {
 
 
@@ -143,7 +151,7 @@ class Main extends Thread {
                     break; // stop looking at this mailbox
                 }
 
-                boolean subfail = false;
+                // use subfail
                 if (!fail) {
                     thisThread.reading[inbox][main.threadNum] = true;
 
@@ -264,11 +272,17 @@ class Main extends Thread {
                 if (foundMailbox) {
                     break; // finished finding mailbox for this set of messages
                 }
+                if (fail || subfail) {
+                    break; // skip this thread
+                }
+
             } // mailbox loop
+
         } // outqueue loop
         for (Integer key : removals) {
             main.outqueue.get(key).clear();
         }
+        removals.clear();
         return success;
     }
 
@@ -452,7 +466,7 @@ class Main extends Thread {
 
         boolean successReceive = false;
         for (int inbox = 0 ; inbox < main.mailboxes; inbox++) {
-            int t = (main.localNext.getAndAdd(1) + inbox) % main.mailboxes;
+            int t = (main.localNext.getAndAdd(1)) % main.mailboxes;
             if (main.mailsize.get(inbox) > 0) {
                 successReceive = tryReceiveInbox(main, run, t, 0);
             }
