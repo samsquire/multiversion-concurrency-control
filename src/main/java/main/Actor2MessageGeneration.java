@@ -1,10 +1,10 @@
 package main;
 
 import java.util.*;
-import java.util.concurrent.atomic.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
-class Actor2 extends Thread {
+class Actor2MessageGeneration extends Thread {
     private int NEITHER = -1;
     private int PREEMPTED = -2;
     private final ArrayList<ArrayList<AlternativeMessage>> messages;
@@ -13,7 +13,7 @@ class Actor2 extends Thread {
     public AtomicInteger localNext = new AtomicInteger(0);
     public volatile boolean running = true;
     public int threadNum;
-    private HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>> outqueue;
+    private HashMap<Integer, ArrayList<AlternativeMessage>> outqueue;
     public ArrayList<ArrayList<Slice>> inqueue;
     private volatile int reading[][];
     private Integer mailsize;
@@ -28,7 +28,7 @@ class Actor2 extends Thread {
     private int receiveThreadNum;
     private int numSubthreads;
 
-    public void setThreads(List<Actor2> threads) {
+    public void setThreads(List<Actor2MessageGeneration> threads) {
         this.threads = threads;
         this.threadsSize = threads.size();
 
@@ -46,18 +46,18 @@ class Actor2 extends Thread {
 
 
     private int messageRate;
-    private List<Actor2> threads;
+    private List<Actor2MessageGeneration> threads;
 
-    public Actor2(ArrayList<ArrayList<AlternativeMessage>> messages,
-                  int subthread,
-                  int messageRate,
-                  int threadNum,
-                  int receiveThreadNum,
-                  List<Actor2> threads,
-                  int size,
-                  boolean synchronizer,
-                  int mailboxes,
-                  int numSubthreads) {
+    public Actor2MessageGeneration(ArrayList<ArrayList<AlternativeMessage>> messages,
+                                   int subthread,
+                                   int messageRate,
+                                   int threadNum,
+                                   int receiveThreadNum,
+                                   List<Actor2MessageGeneration> threads,
+                                   int size,
+                                   boolean synchronizer,
+                                   int mailboxes,
+                                   int numSubthreads) {
         this.subthread = subthread;
         this.numSubthreads = numSubthreads;
         this.messageRate = messageRate;
@@ -65,7 +65,7 @@ class Actor2 extends Thread {
         this.running = true;
         this.threadNum = threadNum;
         this.receiveThreadNum = receiveThreadNum;
-        this.outqueue = new HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>>();
+        this.outqueue = new HashMap<Integer, ArrayList<AlternativeMessage>>();
         this.inqueue = new ArrayList<ArrayList<Slice>>(mailboxes);
         for (int i = 0; i <= mailboxes; i++) {
             this.inqueue.add(new ArrayList<>());
@@ -80,46 +80,40 @@ class Actor2 extends Thread {
 
     }
 
-    private void subthreadOf(Actor2 actor2) {
+    private void subthreadOf(Actor2MessageGeneration actor2) {
         this.inqueue = actor2.inqueue;
     }
 
     public static void main(String[] args) throws InterruptedException {
-        ArrayList<Actor2> threads = new ArrayList<>();
-        ArrayList<Actor2> allThreads = new ArrayList<>();
-        int mailboxes = 10;
-        int messageRate = 3000000;
+        ArrayList<Actor2MessageGeneration> threads = new ArrayList<>();
+        ArrayList<Actor2MessageGeneration> allThreads = new ArrayList<>();
+        int mailboxes = 4;
+        int messageRate = 250;
         int numSubthreads = 10;
         int threadCount = 100;
-        System.out.println("Creating test data...");
+
 
 
         ArrayList<ArrayList<AlternativeMessage>> messages = new ArrayList<>();
 
 
-        for (int i = 0; i <= 101; i++) {
-            ArrayList<AlternativeMessage> innerlist = new ArrayList<>();
-            for (int k = 0; k < messageRate; k++) {
-                innerlist.add(new AlternativeMessage(1));
-            }
-            messages.add(innerlist);
-        }
 
 
-        System.out.println("Created test data.");
-        ArrayList<ArrayList<Actor2>> allSubthreads = new ArrayList<>();
+
+
+        ArrayList<ArrayList<Actor2MessageGeneration>> allSubthreads = new ArrayList<>();
         long start = System.currentTimeMillis();
         int threadNum = 0;
         int totalSize = threadCount * numSubthreads + 1;
         for (int i = 0; i < threadCount; i++) {
-            Actor2 thread = new Actor2(messages, 0, messageRate, threadNum++, i, threads, totalSize, false, mailboxes, numSubthreads);
+            Actor2MessageGeneration thread = new Actor2MessageGeneration(messages, 0, messageRate, threadNum++, i, threads, totalSize, false, mailboxes, numSubthreads);
             allThreads.add(thread);
             threads.add(thread);
         }
         for (int i = 0; i < numSubthreads; i++) {
-            ArrayList<Actor2> subthreads = new ArrayList<>();
+            ArrayList<Actor2MessageGeneration> subthreads = new ArrayList<>();
             for (int subthread = 1; subthread < numSubthreads; subthread++) {
-                Actor2 thread = new Actor2(messages, subthread, messageRate, threadNum++, i, threads, totalSize, false, mailboxes, numSubthreads);
+                Actor2MessageGeneration thread = new Actor2MessageGeneration(messages, subthread, messageRate, threadNum++, i, threads, totalSize, false, mailboxes, numSubthreads);
                 thread.subthreadOf(allThreads.get(i));
                 subthreads.add(thread);
 
@@ -128,7 +122,7 @@ class Actor2 extends Thread {
             allSubthreads.add(subthreads);
         }
 
-        Actor2 synchronizer = new Actor2(messages, 0, messageRate, threadNum++, 101, new ArrayList<>(allThreads), totalSize, true, mailboxes, numSubthreads);
+        Actor2MessageGeneration synchronizer = new Actor2MessageGeneration(messages, 0, messageRate, threadNum++, 101, new ArrayList<>(allThreads), totalSize, true, mailboxes, numSubthreads);
         allThreads.add(synchronizer);
         threads.add(synchronizer);
         synchronizer.setThreads(new ArrayList<>(allThreads));
@@ -137,8 +131,8 @@ class Actor2 extends Thread {
         for (int i = 0; i < 100; i++) {
             threads.get(i).setThreads(new ArrayList<>(allThreads));
         }
-        for (ArrayList<Actor2> subthreads : allSubthreads) {
-            for (Actor2 subthread : subthreads) {
+        for (ArrayList<Actor2MessageGeneration> subthreads : allSubthreads) {
+            for (Actor2MessageGeneration subthread : subthreads) {
                 subthread.setThreads(new ArrayList<>(allThreads));
 
             }
@@ -147,8 +141,8 @@ class Actor2 extends Thread {
         for (int i = 0; i < 100; i++) {
             threads.get(i).start();
         }
-        for (ArrayList<Actor2> subthreads : allSubthreads) {
-            for (Actor2 subthread : subthreads) {
+        for (ArrayList<Actor2MessageGeneration> subthreads : allSubthreads) {
+            for (Actor2MessageGeneration subthread : subthreads) {
                 subthread.start();
             }
         }
@@ -159,8 +153,8 @@ class Actor2 extends Thread {
         for (int i = 0; i < 100; i++) {
             threads.get(i).running = false;
         }
-        for (ArrayList<Actor2> subthreads : allSubthreads) {
-            for (Actor2 subthread : subthreads) {
+        for (ArrayList<Actor2MessageGeneration> subthreads : allSubthreads) {
+            for (Actor2MessageGeneration subthread : subthreads) {
                 subthread.running = false;
             }
         }
@@ -170,13 +164,13 @@ class Actor2 extends Thread {
         }
 
         threads.get(100).join();
-        for (ArrayList<Actor2> subthreads : allSubthreads) {
-            for (Actor2 subthread : subthreads) {
+        for (ArrayList<Actor2MessageGeneration> subthreads : allSubthreads) {
+            for (Actor2MessageGeneration subthread : subthreads) {
                 subthread.join();
             }
         }
         long totalRequests = 0;
-        for (Actor2 thread : allThreads) {
+        for (Actor2MessageGeneration thread : allThreads) {
             totalRequests += thread.requestCount;
         }
         long end = System.currentTimeMillis();
@@ -195,28 +189,28 @@ class Actor2 extends Thread {
 
 
 
-    public boolean tryConnectToThread(Actor2 main, int startMailbox) {
+    public boolean tryConnectToThread(Actor2MessageGeneration main, int startMailbox) {
         boolean success = false;
 
 
-        for (Map.Entry<Integer, ArrayList<ArrayList<AlternativeMessage>>> entry : outqueue.entrySet()) {
+        for (Map.Entry<Integer, ArrayList<AlternativeMessage>> entry : outqueue.entrySet()) {
             boolean foundMailbox = false;
             boolean subfail = false;
             boolean fail = false;
 
-            Actor2 thisThread = threads.get(entry.getKey());
+            Actor2MessageGeneration thisThread = threads.get(entry.getKey());
 
             for (int mb = 0; mb < main.mailboxes; mb++) {
                 int inbox = (mb + startMailbox) % main.mailboxes;
 
-                ArrayList<ArrayList<AlternativeMessage>> messages = entry.getValue();
+                ArrayList<AlternativeMessage> messages = entry.getValue();
                 if (messages.size() == 0) {
                     break;
                 }
 
                 int fallbackMode = -1;
                 int targetMode = thisThread.inqueue.get(inbox).size() + 1;
-                int messagesSize = messageRate;
+                int messagesSize = messages.size();
                 for (int j = 0; j < main.threadNum - 1; j++) {
 
 
@@ -302,11 +296,11 @@ class Actor2 extends Thread {
                         assert thisThread.reading[inbox][main.threadNum] == targetMode;
 
 
-                        ArrayList<AlternativeMessage> messagesToSend = messages.get(thisThread.receiveThreadNum);
+                        ArrayList<AlternativeMessage> messagesToSend = messages;
 
                         thisThread.inqueue.get(inbox).add(new Slice(thisThread.numSubthreads, messagesToSend, messageRate));
                         // System.out.println("Sucessful send");
-                        thisThread.mailsize = thisThread.mailsize + messagesSize;
+                        thisThread.mailsize = mailsize + messagesSize;
                         thisThread.reading[inbox][main.threadNum] = fallbackMode;
 
                         removals.add(entry.getKey());
@@ -382,7 +376,7 @@ class Actor2 extends Thread {
         return success;
     }
 
-    public boolean tryReceiveInbox(Actor2 main, Run run, int inbox, int depth) {
+    public boolean tryReceiveInbox(Actor2MessageGeneration main, Run run, int inbox, int depth) {
         boolean subcheck = false;
         boolean fail = false;
         boolean success = false;
@@ -427,8 +421,9 @@ class Actor2 extends Thread {
                 } // reading loop
 
             }
-            if (!subcheck) {
+            if (!subcheck && main.inqueue.get(inbox).size() > 0) {
                 assert main.reading[inbox][main.threadNum] == targetMode;
+                assert main.inqueue.get(inbox).size() > 0 : main.inqueue.get(inbox).size();
                 success = true;
 
                 Slice slice = main.inqueue.get(inbox).get(0);
@@ -543,7 +538,7 @@ class Actor2 extends Thread {
         return success;
     }
 
-    public boolean transaction(Actor2 main, Run run, int depth, boolean send) {
+    public boolean transaction(Actor2MessageGeneration main, Run run, int depth, boolean send) {
         main.started = true;
         boolean preempted = false;
 
@@ -575,7 +570,7 @@ class Actor2 extends Thread {
         boolean successReceive = false;
         for (int inbox = 0; inbox < main.mailboxes; inbox++) {
             int t = (main.localNext.getAndAdd(1)) % main.mailboxes;
-            if (main.inqueue.get(t).size() > 0) {
+            if (mailsize > 0 && main.inqueue.get(t).size() > 0) {
                 successReceive = tryReceiveInbox(main, run, t, 0);
             }
 
@@ -587,7 +582,7 @@ class Actor2 extends Thread {
     public void run() {
         Run run = new Run(threadNum, threadNum);
         Random random = new Random();
-        List<Actor2> rthreads = new ArrayList<>(threads);
+        List<Actor2MessageGeneration> rthreads = new ArrayList<>(threads);
         Collections.reverse(rthreads);
 
         if (subthread > 0) {
@@ -602,12 +597,22 @@ class Actor2 extends Thread {
                      there is contention writing to the same thread, so try spread it out
                      **/
 
-                    for (int i = 0; i < threadsSize; i++) {
+                    // System.out.println("Creating messages to send...");
+                    for (int t = 0 ; t < threadsSize; t++) {
+                        ArrayList<AlternativeMessage> batch = new ArrayList<>(messageRate);
+                        run.lastThread = (next.getAndAdd(1) + threadNum) % threadsSize;
+                        for (int i = 0; i < messageRate; i++) {
 
-                        this.outqueue.put(i, messages);
+                            AlternativeMessage message = new AlternativeMessage(threadNum, t, 1);
 
+                            batch.add(message);
+
+
+                        }
+                        this.outqueue.put(t, batch);
                     }
-                    sent += messageRate * threadsSize;
+                    sent += threadsSize * messageRate;
+                    // System.out.println("Created messages to send...");
 
 
                 } else {
@@ -645,9 +650,13 @@ class Actor2 extends Thread {
 
     public static class AlternativeMessage {
         private int body;
+        private int to;
+        private int from;
 
-        public AlternativeMessage(int body) {
+        public AlternativeMessage(int from, int lastThread, int body) {
+            this.from = from;
             this.body = body;
+            this.to = lastThread;
         }
     }
 

@@ -520,7 +520,7 @@ class Main extends Thread {
 
     public static class Message {
         private int from;
-        private int to;
+        public int to;
         private int body;
 
 

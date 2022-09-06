@@ -46,6 +46,7 @@ public class ConcurrentLoopJoin extends ConcurrentLoop {
         synchronized (wait_lists) {
             for (List<ConcurrentLoop> wait_list : wait_lists) {
                 List<List<StringOrConcurrentLoop>> all_fields = wait_contents.get(wait_list);
+                if (all_fields == null) { continue; }
                 int desiredSize = wait_list.size();
                 int min = Integer.MAX_VALUE;
                 for (int i = 0; i < all_fields.size(); i++) {
