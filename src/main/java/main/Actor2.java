@@ -432,27 +432,28 @@ class Actor2 extends Thread {
                 success = true;
 
                 Slice slice = main.inqueue.get(inbox).get(0);
-                if (slice.popped() == 0) {
-                    main.inqueue.get(inbox).remove(0);
+                if (slice != null) {
+                    if (slice.popped() == 0) {
+                        main.inqueue.get(inbox).remove(0);
+                    }
+                    List<AlternativeMessage> subthread = slice.subthread(this.subthread);
+                    main.mailsize = main.mailsize - subthread.size();
+                    main.reading[inbox][main.threadNum] = NEITHER;
+
+                    for (AlternativeMessage message : subthread) {
+
+                        main.requestCount = main.requestCount + message.body;
+
+
+                        // System.out.println(String.format("%d received %d from %d", threadNum, message.body, message.from));
+                    }
+
+
+                    // System.out.println("Successful receive");
+
+
+                    Thread.yield();
                 }
-                List<AlternativeMessage> subthread = slice.subthread(this.subthread);
-                main.mailsize = main.mailsize - subthread.size();
-                main.reading[inbox][main.threadNum] = NEITHER;
-
-                for (AlternativeMessage message : subthread) {
-
-                    main.requestCount = main.requestCount + message.body;
-
-
-
-                    // System.out.println(String.format("%d received %d from %d", threadNum, message.body, message.from));
-                }
-
-
-                // System.out.println("Successful receive");
-
-
-                Thread.yield();
 
             } // subcheck doubly safe
             else {

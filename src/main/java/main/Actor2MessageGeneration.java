@@ -295,7 +295,7 @@ class Actor2MessageGeneration extends Thread {
 
                     if (!subfail) {
 
-                        System.out.println("successful send");
+                        // System.out.println("successful send");
                         assert thisThread.reading[inbox][main.threadNum] == targetMode;
 
 
@@ -450,7 +450,7 @@ class Actor2MessageGeneration extends Thread {
                     }
 
 
-                    System.out.println("Successful receive");
+                    // System.out.println("Successful receive");
 
 
                     Thread.yield();
