@@ -112,9 +112,9 @@ class Actor2ParallelMessageCreation extends Thread {
         int messageRate = 25000;
         int numSubthreads = 20;
 
-        int batchSize = 1;
+        int batchSize = 5;
         boolean logging = false;
-        int creationThreads = 3;
+        int creationThreads = 2;
         int sendThreads = 1;
         int receiveThreads = 1;
         int logicalThreads = 4;
