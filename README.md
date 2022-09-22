@@ -20,6 +20,39 @@ This is another parallel multithreaded actor model. Run `Actor2.java` to run it.
 
 This program allocates all 10 million messages in advance and communicates them with lists of lists which avoid the parallel iterator problem. 
 
+# Parallel Interpreter
+
+This is a parallel threaded interpreter based on the Actor2 code above which can communicate between itself.
+
+It can achieve the following throughput of communication:
+
+8612462 total requests
+1700387.364265 requests per second
+Time taken: 5.065000
+
+It runs this program:
+
+```
+threads 25
+<start>
+set running 1
+set current_thread 0
+set received_value 0
+set current 1
+:while1
+while running :end
+receive received_value :send
+:send
+add received_value current
+addv current_thread 1
+modulo current_thread 25
+send current_thread current :while1
+endwhile :while1
+:end
+```
+
+This starts 25 threads which each try receive a message and send a message to another thread and add one to the counter of the number of messages received.
+
 # Multiversion concurrency control - How it works
 
 The database offers keys of values which are integers. They are named, in the transaction examples, the keys are A and B.

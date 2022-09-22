@@ -22,12 +22,12 @@ public class Interpreter extends Thread {
 
         while (running) {
             int pc = programStart;
-            System.out.println(String.format("program start %d", pc));
+            //System.out.println(String.format("program start %d", pc));
             int jump = -1;
             while (pc < program.size()) {
                 String instruction = programInstructionTypes.get(pc);
                 Map<String, String> parsed = program.get(pc);
-                System.out.println(String.format("%d %s %s %s", pc, instruction, parsed, variables));
+                // System.out.println(String.format("%d %s %s %s", pc, instruction, parsed, variables));
                 switch (instruction) {
                     case "set":
                         String variableName = parsed.get("variableName");
