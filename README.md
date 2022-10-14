@@ -30,7 +30,11 @@ The model checker is written in Python in a different repository, see [multithre
 
 This is another parallel multithreaded actor model. Run `Actor2.java` to run it. I get around 1.1 billion requests per second with this model.
 
-This program allocates all 10 million messages in advance and communicates them with lists of lists which avoid the parallel iterator problem. 
+This program allocates all 10 million messages in advance and communicates them with lists of lists which avoid the parallel iterator problem.
+
+Main.java creates messages as it goes, it reaches 100 million requests per second.
+
+There is another version which creates messages in separate thread and this gets 61 million requests per second.
 
 # Parallel Interpreter
 
