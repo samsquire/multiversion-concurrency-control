@@ -67,7 +67,7 @@ endwhile :while1
 :end
 ```
 
-This starts 25 threads which each try receive a message and send a message to another thread and add one to the counter of the number of messages received.
+This starts 25 threads which each try to receive a message and send a message to another thread and add one to the counter of the number of messages received.
 
 # Multiversion concurrency control - How it works
 

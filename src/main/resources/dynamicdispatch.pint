@@ -1,0 +1,26 @@
+threads 25
+<start>
+classvariable rectangle width
+classvariable rectangle height
+classmethod area :area
+classvariable square width
+classvariable square height
+classmethod area :area
+new list list1
+new object1 rectangle
+append list1 object1
+setinstance object1 width 25
+setinstance object1 height 25
+invoke list1 size size
+loop i 0 < size :endloop
+listget list1 i item
+invoke item area area
+print area
+:endloop
+:end
+:area
+loadobject this
+multiply width height result
+return result
+
+

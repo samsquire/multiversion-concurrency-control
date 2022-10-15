@@ -32,7 +32,7 @@ public class Interpreter extends Thread {
                     case "set":
                         String variableName = parsed.get("variableName");
                         String defaultValue = parsed.get("defaultValue");
-                        System.out.println(variableName);
+
                         variables.put(variableName, Integer.parseInt(defaultValue));
                         break;
                     case "add":
@@ -150,7 +150,7 @@ public class Interpreter extends Thread {
                        int numSubthreads,
                        List<String> programInstructionTypes, List<Map<String, String>> program,
                        int programStart, HashMap<String,
-            Integer> variables,
+                                   Integer> variables,
                        Map<String, Integer> labels
     ) {
         this.programInstructionTypes = programInstructionTypes;
