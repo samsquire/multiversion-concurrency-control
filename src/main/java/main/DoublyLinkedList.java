@@ -3,15 +3,17 @@ package main;
 public class DoublyLinkedList {
     public volatile int modCount = 0;
     public volatile Integer value;
+    private long timestamp;
     public volatile int[] reading;
     public volatile DoublyLinkedList head = null;
     public volatile  DoublyLinkedList tail = null;
-    public DoublyLinkedList(Integer value) {
+    public DoublyLinkedList(Integer value, long timestamp) {
         this.value = value;
+        this.timestamp = timestamp;
     }
     public DoublyLinkedList insert(Integer value) {
         int previousModCount = modCount;
-        DoublyLinkedList newItem = new DoublyLinkedList(value);
+        DoublyLinkedList newItem = new DoublyLinkedList(value, System.nanoTime());
 
         newItem.head = this;
         DoublyLinkedList previous = tail;

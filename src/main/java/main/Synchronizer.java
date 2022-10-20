@@ -53,10 +53,10 @@ public class Synchronizer extends Thread {
     public static void main(String[] args) throws InterruptedException {
 
         int numberSynchronizers = 1;
-        int numberThreads = 11;
+        int numberThreads = 1000;
         int size = 200;
         int id = 0;
-        DoublyLinkedList data = new DoublyLinkedList(0);
+        DoublyLinkedList data = new DoublyLinkedList(0, System.currentTimeMillis());
         List<Synchronizer> threads = new ArrayList<>();
         List<Synchronizer> synchronizers = new ArrayList<>();
 
@@ -563,7 +563,7 @@ public class Synchronizer extends Thread {
         Arrays.fill(announces, NEITHER);
         this.data.reading = new int[threadsSize];
         Arrays.fill(data.reading, NEITHER);
-        this.readingCallbacks = new int[size];
+        this.readingCallbacks = new int[threadsSize];
         Arrays.fill(readingCallbacks, NEITHER);
     }
 

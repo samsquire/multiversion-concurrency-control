@@ -28,7 +28,7 @@ public class LockBenchmark extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         ReadWriteLock rwlock = new ReentrantReadWriteLock();
-        int threadCount = 11;
+        int threadCount = 1000;
         List<LockBenchmark> threads = new ArrayList<>();
         for (int i = 0 ; i < threadCount; i++) {
             LockBenchmark lockBenchmark = new LockBenchmark(i, rwlock.writeLock());
