@@ -10,7 +10,7 @@ This repository is where I do experimental work on concurrency and parallelism p
 * Concurrent looping (parallel mapreduce for nested loops)
 * A multiconsumer multiproducer ringbuffer which is threadsafe This is inspired by [Alexander Krizhanovsky](https://www.linuxjournal.com/content/lock-free-multi-producer-multi-consumer-queue-ring-buffer)
 
-The headline implementation is a multithreaded multiversion concurrency control solution which handles safe and concurrent access to a database of integers without locking. We timestamp read events and check if there is any read event with a timestamp that is higher than us, in which case, we restart our transaction.
+The headline implementation is a multithreaded multiversion concurrency control solution which handles safe and concurrent access to a database of integers without locking. We timestamp read events and check if there is any read event with a timestamp that is lower than us, in which case, we restart our transaction.
 
 MVCC.java TransactionA.java and TransactionC.java is an example of multiversion concurrency control and the avoidance of locks of the data being modified for multithreaded programming.
 
