@@ -26,7 +26,7 @@ public class InterpreterRunner {
     private void run() {
         try {
             long start = System.currentTimeMillis();
-            URL res = getClass().getClassLoader().getResource("code.pint");
+            URL res = getClass().getClassLoader().getResource("crossthread.pint");
             File file = Paths.get(res.toURI()).toFile();
             String absolutePath = file.getAbsolutePath();
             Scanner reader = new Scanner(file);
@@ -41,6 +41,12 @@ public class InterpreterRunner {
             registerInstruction("send", new SendInstruction());
             registerInstruction("endwhile", new EndWhileInstruction());
             registerInstruction("addv", new AddValueInstruction());
+            registerInstruction("println", new PrintLnInstruction());
+            registerInstruction("sendcode", new SendCodeInstruction());
+            registerInstruction("receivecode", new ReceiveCodeInstruction());
+            registerInstruction("mailbox", new MailboxInstruction());
+            registerInstruction("return", new ReturnInstruction());
+            registerInstruction("jump", new JumpInstruction());
             Map<String, Integer> labels = new HashMap<>();
             List<Map<String, String>> program = new ArrayList<>();
             boolean programStarted = false;

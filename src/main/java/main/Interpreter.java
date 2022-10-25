@@ -11,6 +11,7 @@ public class Interpreter extends Thread {
     public List<Map<String, String>> program;
     public boolean running = true;
     public int programCounter = 0;
+    private List<Integer> stack;
 
 
     public void run() {
@@ -54,13 +55,13 @@ public class Interpreter extends Thread {
                         newMessage.add(new AlternativeMessage(variables.get(parsed.get("sendVariableName"))));
                         Integer destination = variables.get(parsed.get("destination"));
                         // System.out.println(String.format("destination is %d", destination));
-                        this.outqueue.get(destination).add(newMessage);
+                        this.outqueue.get(parsed.get("mailboxName")).get(destination).add(newMessage);
 
-                        boolean success = sendTransaction(this, run, 2);
+                        boolean success = sendTransaction(this, run, 2, parsed.get("mailboxName"));
                         sent += 1;
                         break;
                     case "receive":
-                        Integer received2 = transaction(this, run, 2, true);
+                        Integer received2 = transaction(this, run, 2, true, parsed.get("mailboxName"));
                         if (received2 == -1) {
                             jump = labels.get(parsed.get("failJump"));
                         } else {
@@ -80,7 +81,36 @@ public class Interpreter extends Thread {
                         String variableName2 = parsed.get("variableName");
                         int newValue = variables.get(variableName2) % Integer.parseInt(parsed.get("amount"));
                         variables.put(variableName2, newValue);
+                        break;
+                    case "return":
+                        jump = stack.remove(0);
+                        break;
+                    case "sendcode":
+
+                        ArrayList<AlternativeMessage> newMessage2 = new ArrayList<>();
+                        newMessage2.add(new AlternativeMessage(labels.get(parsed.get("sendLabel"))));
+                        Integer destination2 = variables.get(parsed.get("destination"));
+                        // System.out.println(String.format("destination is %d", destination));
+                        this.outqueue.get(parsed.get("mailboxName")).get(destination2).add(newMessage2);
+
+                        boolean success2 = sendTransaction(this, run, 2, parsed.get("mailboxName"));
+                        sent += 1;
+                        break;
+                    case "receivecode":
+                        stack.add(pc + 1);
+                        jump = transaction(this, run, 2, true, parsed.get("mailboxName"));
+                        break;
+                    case "mailbox":
+                        createMailbox(parsed.get("mailboxName"));
+                        break;
+                    case "println":
+                        System.out.println(variables.get(parsed.get("variableName")));
+                        break;
+                    case "jump":
+                        jump = labels.get(parsed.get("jumpDestination"));
                     }
+
+
                     pc++;
                     if (jump != -1) {
                         pc = jump;
@@ -102,8 +132,8 @@ public class Interpreter extends Thread {
     public AtomicInteger next = new AtomicInteger(0);
     public AtomicInteger localNext = new AtomicInteger(0);
     public int threadNum;
-    private HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>> outqueue;
-    public ArrayList<ArrayList<Slice>> inqueue;
+    private HashMap<String, HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>>> outqueue;
+    public HashMap<String, ArrayList<ArrayList<Slice>>> inqueue;
     private volatile int reading[][];
     private Integer mailsize;
     public long requestCount;
@@ -121,9 +151,7 @@ public class Interpreter extends Thread {
         this.threads = threads;
         this.threadsSize = threads.size();
 
-        for (int i = 0; i < threadsSize; i++) {
-            this.outqueue.put(i, new ArrayList<>(10000));
-        }
+
         this.reading = new int[mailboxes][threadsSize];
         for (int i = 0; i < mailboxes; i++) {
             for (int t = 0; t < threadsSize; t++) {
@@ -137,6 +165,17 @@ public class Interpreter extends Thread {
     private int messageRate;
     private List<Interpreter> threads;
     private Map<String, Integer> labels;
+
+    public void createMailbox(String mailboxName) {
+        this.outqueue.put(mailboxName, new HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>>());
+        this.inqueue.put(mailboxName, new ArrayList<ArrayList<Slice>>(mailboxes));
+        for (int i = 0; i < threadsSize; i++) {
+            this.outqueue.get(mailboxName).put(i, new ArrayList<>(10000));
+        }
+        for (int i = 0; i <= mailboxes; i++) {
+            this.inqueue.get(mailboxName).add(new ArrayList<>());
+        }
+    }
 
     public Interpreter(ArrayList<ArrayList<AlternativeMessage>> messages,
                        int subthread,
@@ -165,17 +204,16 @@ public class Interpreter extends Thread {
         this.running = true;
         this.threadNum = threadNum;
         this.receiveThreadNum = receiveThreadNum;
-        this.outqueue = new HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>>();
-        this.inqueue = new ArrayList<ArrayList<Slice>>(mailboxes);
-        for (int i = 0; i <= mailboxes; i++) {
-            this.inqueue.add(new ArrayList<>());
-        }
+
+
         this.mailboxes = mailboxes;
         this.messages = messages;
         this.mailsize = 0;
-
+        this.stack = new ArrayList<>();
 
         this.removals = new ArrayList<>(10000);
+        this.outqueue = new HashMap<>();
+        this.inqueue = new HashMap<>();
 
 
     }
@@ -187,7 +225,7 @@ public class Interpreter extends Thread {
 
 
 
-    public boolean tryConnectToThread(Interpreter main, int startMailbox) {
+    public boolean tryConnectToThread(Interpreter main, int startMailbox, HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>> outqueue, String mailboxName) {
         boolean success = false;
 
 
@@ -207,7 +245,7 @@ public class Interpreter extends Thread {
                 }
 
                 int fallbackMode = -1;
-                int targetMode = thisThread.inqueue.get(inbox).size() + 1;
+                int targetMode = thisThread.inqueue.get(mailboxName).get(inbox).size() + 1;
                 int messagesSize = messageRate;
                 for (int j = 0; j < main.threadNum - 1; j++) {
 
@@ -296,7 +334,7 @@ public class Interpreter extends Thread {
 
                         ArrayList<AlternativeMessage> messagesToSend = messages.get(0);
 
-                        thisThread.inqueue.get(inbox).add(new Slice(thisThread.numSubthreads, messagesToSend, messageRate));
+                        thisThread.inqueue.get(mailboxName).get(inbox).add(new Slice(thisThread.numSubthreads, messagesToSend, messageRate));
                         // System.out.println("Sucessful send");
                         thisThread.mailsize = thisThread.mailsize + messagesSize;
                         thisThread.reading[inbox][main.threadNum] = fallbackMode;
@@ -368,13 +406,13 @@ public class Interpreter extends Thread {
 
         } // outqueue loop
         for (Integer key : removals) {
-            main.outqueue.get(key).clear();
+            main.outqueue.get(mailboxName).get(key).clear();
         }
         removals.clear();
         return success;
     }
 
-    public int tryReceiveInbox(Interpreter main, Run run, int inbox, int depth) {
+    public int tryReceiveInbox(Interpreter main, Run run, int inbox, int depth, String mailboxName) {
         boolean subcheck = false;
         boolean fail = false;
         boolean success = false;
@@ -423,10 +461,10 @@ public class Interpreter extends Thread {
                 assert main.reading[inbox][main.threadNum] == targetMode;
                 success = true;
 
-                Slice slice = main.inqueue.get(inbox).get(0);
+                Slice slice = main.inqueue.get(mailboxName).get(inbox).get(0);
                 if (slice != null) {
                     if (slice.popped() == 0) {
-                        main.inqueue.get(inbox).remove(0);
+                        main.inqueue.get(mailboxName).get(inbox).remove(0);
                     }
                     List<AlternativeMessage> subthread = slice.subthread(this.subthread);
                     main.mailsize = main.mailsize - subthread.size();
@@ -472,7 +510,9 @@ public class Interpreter extends Thread {
                                 }
                                 if (!innerfail) {
 
-                                    transaction(main.threads.get(m), new Run(threads.get(m).threadNum, threads.get(m).threadNum), depth + 1, true);
+                                    transaction(main.threads.get(m),
+                                            new Run(threads.get(m).threadNum, threads.get(m).threadNum),
+                                            depth + 1, true, mailboxName);
                                 }
                                 main.threads.get(m).reading[inbox][main.threadNum] = NEITHER;
                                 break;
@@ -514,7 +554,7 @@ public class Interpreter extends Thread {
                                 }
                             }
                             if (!innerfail) {
-                                transaction(main.threads.get(m), new Run(threads.get(m).threadNum, threads.get(m).threadNum), depth + 1, true);
+                                transaction(main.threads.get(m), new Run(threads.get(m).threadNum, threads.get(m).threadNum), depth + 1, true, mailboxName);
                             }
                             main.threads.get(m).reading[inbox][main.threadNum] = NEITHER;
                             break;
@@ -530,7 +570,7 @@ public class Interpreter extends Thread {
         return returnValue;
     }
 
-    public boolean sendTransaction(Interpreter main, Run run, int depth) {
+    public boolean sendTransaction(Interpreter main, Run run, int depth, String mailboxName) {
         main.started = true;
         boolean preempted = false;
 
@@ -550,12 +590,12 @@ public class Interpreter extends Thread {
             return false;
         }
             int inboxStart = (main.localNext.getAndAdd(1)) % main.mailboxes;
-            boolean success = tryConnectToThread(main, inboxStart);
+            boolean success = tryConnectToThread(main, inboxStart, outqueue.get(mailboxName), mailboxName);
             // successfully sent a message to a thread
         return success;
     }
 
-    public Integer transaction(Interpreter main, Run run, int depth, boolean send) {
+    public Integer transaction(Interpreter main, Run run, int depth, boolean send, String mailboxName) {
         main.started = true;
         boolean preempted = false;
 
@@ -584,8 +624,8 @@ public class Interpreter extends Thread {
         Integer received = -1;
         for (int inbox = 0; inbox < main.mailboxes; inbox++) {
             int t = (main.localNext.getAndAdd(1)) % main.mailboxes;
-            if (main.inqueue.get(t).size() > 0) {
-               received = tryReceiveInbox(main, run, t, 0);
+            if (main.inqueue.get(mailboxName).get(t).size() > 0) {
+               received = tryReceiveInbox(main, run, t, 0, mailboxName);
                 break;
             }
 

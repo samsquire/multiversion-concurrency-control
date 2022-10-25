@@ -53,7 +53,7 @@ public class Synchronizer extends Thread {
     public static void main(String[] args) throws InterruptedException {
 
         int numberSynchronizers = 1;
-        int numberThreads = 1000;
+        int numberThreads = 11;
         int size = 200;
         int id = 0;
         DoublyLinkedList data = new DoublyLinkedList(0, System.currentTimeMillis());
