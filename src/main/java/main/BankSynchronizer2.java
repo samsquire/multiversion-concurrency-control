@@ -7,7 +7,7 @@ import static java.lang.Math.max;
 
 public class BankSynchronizer2 extends Thread {
     private final int transactionCount;
-    private int[] lastInsert;
+    private volatile int[] lastInsert;
     public HashSet<Transaction> allTransactions;
     private HashSet<Transaction> waitingDispatch;
     private static final int NEITHER = -1;
@@ -178,7 +178,7 @@ public class BankSynchronizer2 extends Thread {
                 allEmpty = true;
                 // System.out.println(String.format("%d Processing transactions", id));
                 int nullcount = 0;
-
+                int processed = 0;
                 for (int b = 0; b < queued.length; b++) {
                     boolean cancel = false;
 
@@ -192,15 +192,18 @@ public class BankSynchronizer2 extends Thread {
                             transaction.done = true;
                             transaction.executionCount++;
                             accounts.get(transaction.account).balance += transaction.amount;
-
+                            processed++;
 
                         }
                         if (transaction == null || transaction.done) {
                             nullcount++;
-                            if (nullcount > 2500) {
-                                  cancel = true;
-                            }
 
+
+                        }
+                        if (j > lastInsert[b]) {
+                            cancel = true;
+                            lastInsert[b] = 0;
+                            // System.out.println(String.format("%d %d", j, lastInsert[b]));
                         }
                         if (cancel) {
                             break;
@@ -208,7 +211,7 @@ public class BankSynchronizer2 extends Thread {
 
 
                     }
-                    lastInsert[b] = 0;
+
 
                 }
 
@@ -233,14 +236,18 @@ public class BankSynchronizer2 extends Thread {
                     // System.out.println(String.format("%d %d %d", transaction.getKey().account, synchronizerThread, bucket));
                     Transaction found = synchronizerThreads.get(synchronizerThread).queued[bucket][transaction.getValue()];
 
-                    transaction.getKey().failCount++;
-
+                    // transaction.getKey().failCount++;
+                    if (synchronizerThreads.get(synchronizerThread).lastInsert[bucket] < transaction.getValue()) {
+                        synchronizerThreads.get(synchronizerThread).lastInsert[bucket] = transaction.getValue() + 1;
+                    }
                     if ((found == null || found != transaction.getKey()) && transaction.getKey().done == false) {
+
                         if (!this.dispatch(transaction.getKey())) {
                             System.out.println("Failed to enqueue");
                         } else {
                             // System.out.println("Successful enqueue");
                         }
+
 //                        System.out.println("Data race");
                     } else if (transaction.getKey().done) {
                         removals.add(transaction.getKey());
@@ -302,7 +309,7 @@ public class BankSynchronizer2 extends Thread {
 
         allTransactions.add(transaction);
         // System.out.println(String.format("Dispatching %d", id));
-        for (int i = 0; i < synchronizerThreads.get(synchronizerThread).queued[bucket].length; i++) {
+        for (int i = id; i < synchronizerThreads.get(synchronizerThread).queued[bucket].length; i += id) {
             Transaction[] transactions = synchronizerThreads.get(synchronizerThread).queued[bucket];
             Transaction replacement = transactions[i];
             if (replacement == null || replacement.done) {
@@ -310,13 +317,15 @@ public class BankSynchronizer2 extends Thread {
                 inserted = true;
                 transactions[i] = transaction;
                 pending.put(transaction, i);
-                // synchronizerThreads.get(synchronizerThread).lastInsert[bucket] = i + 1;
+                // synchronizerThreads.get(synchronizerThread).lastInsert[bucket] = i;
+//                System.out.println(i);
+                if (i > synchronizerThreads.get(synchronizerThread).lastInsert[bucket]) {
+                    synchronizerThreads.get(synchronizerThread).lastInsert[bucket] = i;
+                }
                 break;
             }
         }
-        if (synchronizerThreads.get(synchronizerThread).lastInsert[bucket] == size) {
-            synchronizerThreads.get(synchronizerThread).lastInsert[bucket] = 0;
-        }
+
         // System.out.println("Failed to insert");
         return inserted;
     }

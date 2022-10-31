@@ -47,11 +47,15 @@ public class BankAccounts3 extends Thread {
         for (BankAccounts3.Account account : accounts) {
             money += account.balance;
         }
+        System.out.println(String.format("= Total Money = %d", money));
+        System.out.println("Starting test");
+
         int threadId = 0;
         List<BankAccounts3> threads = new ArrayList<>();
         for (int i = 0; i < threadCount; i++) {
             threads.add(new BankAccounts3(threadId++, accounts));
         }
+
 
         for (int i = 0; i < threadCount; i++) {
             threads.get(i).start();

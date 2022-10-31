@@ -1,0 +1,12 @@
+threads 25
+<start>
+function deposit(int account, int amount) {
+    accounts[account].balance += amount;
+}
+function withdraw(int account, int amount) {
+    accounts[account].balance -= amount;
+}
+set hash accounts = {}
+for (i = 0 ; i < 100; i++) {
+    balance = randomInt(2500)
+}

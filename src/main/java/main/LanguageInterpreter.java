@@ -1,20 +1,184 @@
 package main;
 
+
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class LanguageInterpreter extends Thread {
+    private final int programStart;
+    private Pattern pattern;
+    private final AST parsedProgram;
+    private Matcher matcher;
+    public HashMap<String, Integer> variables;
+    private HashMap<String, InstructionHandler> instructionHandlers;
+    private List<String> programInstructionTypes;
+    public String program;
+    public volatile boolean running = true;
+    public int programCounter = 0;
+    private List<Integer> stack;
+    private String programString;
+    private int pos;
+    private boolean end;
+    private char last_char;
+
+    public LanguageInterpreter(AST parsedProgram, ArrayList<ArrayList<LanguageInterpreter.AlternativeMessage>> messages, int subthread, int messageRate, int threadNum, int i, ArrayList<Object> objects, int totalSize, boolean synchronizer, int mailboxes, int numSubthreads, List<String> programInstructionTypes, String programString, int programStart, HashMap<String, Integer> variables, Map<String, Integer> labels) {
+        this.programInstructionTypes = programInstructionTypes;
+        this.program = program;
+        this.programStart = programStart;
+        this.variables = new HashMap<>(variables);
+        this.subthread = subthread;
+        this.numSubthreads = numSubthreads;
+        this.messageRate = messageRate;
+        this.threads = threads;
+        this.labels = labels;
+        this.running = true;
+        this.threadNum = threadNum;
+        this.receiveThreadNum = receiveThreadNum;
+        this.parsedProgram = parsedProgram;
+
+        this.mailboxes = mailboxes;
+        this.messages = messages;
+        this.mailsize = 0;
+        this.stack = new ArrayList<>();
+
+        this.removals = new ArrayList<>(10000);
+        this.outqueue = new HashMap<>();
+        this.inqueue = new HashMap<>();
 
 
-class Actor2MessageGeneration extends Thread {
+    }
+
+
+
+    public void run() {
+        Run run = new Run(threadNum, threadNum);
+        Random random = new Random();
+        List<LanguageInterpreter> rthreads = new ArrayList<>(threads);
+        Collections.reverse(rthreads);
+
+
+
+
+        List<Map<String, String>> codegen = parsedProgram.codegen();
+
+        while (running) {
+            int pc = programStart;
+            //System.out.println(String.format("program start %d", pc));
+            int jump = -1;
+            while (running && pc < codegen.size()) {
+                System.out.println("Running");
+                String instruction = programInstructionTypes.get(pc);
+                Map<String, String> parsed = codegen.get(pc);
+                // System.out.println(String.format("%d %s %s %s", pc, instruction, parsed, variables));
+                switch (instruction) {
+                    case "set":
+                        String variableName = parsed.get("variableName");
+                        String defaultValue = parsed.get("defaultValue");
+
+                        variables.put(variableName, Integer.parseInt(defaultValue));
+                        break;
+                    case "add":
+
+                        variableName = parsed.get("variableName");
+                        Integer value = variables.get(parsed.get("operandVariable"));
+
+                        variables.put(parsed.get("operandVariable"), variables.get(variableName) + value);
+                        break;
+                    case "addv":
+
+                        variableName = parsed.get("variableName");
+                        Integer value2 = Integer.parseInt(parsed.get("value"));
+
+                        variables.put(parsed.get("variableName"), variables.get(variableName) + value2);
+                        break;
+                    case "send":
+                        ArrayList<AlternativeMessage> newMessage = new ArrayList<>();
+                        newMessage.add(new AlternativeMessage(variables.get(parsed.get("sendVariableName"))));
+                        Integer destination = variables.get(parsed.get("destination"));
+                        // System.out.println(String.format("destination is %d", destination));
+                        this.outqueue.get(parsed.get("mailboxName")).get(destination).add(newMessage);
+
+                        boolean success = sendTransaction(this, run, 2, parsed.get("mailboxName"));
+                        sent += 1;
+                        break;
+                    case "receive":
+                        Integer received2 = transaction(this, run, 2, true, parsed.get("mailboxName"));
+                        if (received2 == -1) {
+                            jump = labels.get(parsed.get("failJump"));
+                        } else {
+                            variables.put(parsed.get("variableName"), received2);
+                        }
+
+                        break;
+                    case "while":
+                        if (variables.get(parsed.get("variableName")) != 1) {
+                            jump = labels.get(parsed.get("jump"));
+                        }
+                        break;
+                    case "endwhile":
+                        jump = labels.get(parsed.get("jump"));
+                        break;
+                    case "modulo":
+                        String variableName2 = parsed.get("variableName");
+                        int newValue = variables.get(variableName2) % Integer.parseInt(parsed.get("amount"));
+                        variables.put(variableName2, newValue);
+                        break;
+                    case "return":
+                        jump = stack.remove(0);
+                        break;
+                    case "sendcode":
+
+                        ArrayList<AlternativeMessage> newMessage2 = new ArrayList<>();
+                        newMessage2.add(new AlternativeMessage(labels.get(parsed.get("sendLabel"))));
+                        Integer destination2 = variables.get(parsed.get("destination"));
+                        // System.out.println(String.format("destination is %d", destination));
+                        this.outqueue.get(parsed.get("mailboxName")).get(destination2).add(newMessage2);
+
+                        boolean success2 = sendTransaction(this, run, 2, parsed.get("mailboxName"));
+                        sent += 1;
+                        break;
+                    case "receivecode":
+                        stack.add(pc + 1);
+                        jump = transaction(this, run, 2, true, parsed.get("mailboxName"));
+                        break;
+                    case "mailbox":
+                        createMailbox(parsed.get("mailboxName"));
+                        break;
+                    case "println":
+                        System.out.println(variables.get(parsed.get("variableName")));
+                        break;
+                    case "jump":
+                        jump = labels.get(parsed.get("jumpDestination"));
+                    }
+
+
+                    pc++;
+                    if (jump != -1) {
+                        pc = jump;
+                        jump = -1;
+                    }
+                }
+
+
+            }
+
+        }
+
+    private void codegen(AST parsed) {
+
+    }
+
     private int NEITHER = -1;
     private int PREEMPTED = -2;
     private final ArrayList<ArrayList<AlternativeMessage>> messages;
     private int mailboxes;
     public AtomicInteger next = new AtomicInteger(0);
     public AtomicInteger localNext = new AtomicInteger(0);
-    public volatile boolean running = true;
     public int threadNum;
-    private HashMap<Integer, ArrayList<AlternativeMessage>> outqueue;
-    public ArrayList<ArrayList<Slice>> inqueue;
+    private HashMap<String, HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>>> outqueue;
+    public HashMap<String, ArrayList<ArrayList<Slice>>> inqueue;
     private volatile int reading[][];
     private Integer mailsize;
     public long requestCount;
@@ -24,21 +188,18 @@ class Actor2MessageGeneration extends Thread {
     private int sent;
     private int delivered;
     List<Integer> removals;
-    private int batchSize;
     private int subthread;
     private int receiveThreadNum;
     private int numSubthreads;
 
-    public void setThreads(List<Actor2MessageGeneration> threads) {
+    public void setThreads(List<LanguageInterpreter> threads) {
         this.threads = threads;
         this.threadsSize = threads.size();
 
-        for (int i = 0; i < threadsSize; i++) {
-            this.outqueue.put(i, new ArrayList<>(10000));
-        }
+
         this.reading = new int[mailboxes][threadsSize];
-        for (int i = 0 ; i < mailboxes; i++) {
-            for (int t = 0 ; t < threadsSize; t++) {
+        for (int i = 0; i < mailboxes; i++) {
+            for (int t = 0; t < threadsSize; t++) {
                 this.reading[i][t] = NEITHER;
             }
         }
@@ -47,173 +208,51 @@ class Actor2MessageGeneration extends Thread {
 
 
     private int messageRate;
-    private List<Actor2MessageGeneration> threads;
+    private List<LanguageInterpreter> threads;
+    private Map<String, Integer> labels;
 
-    public Actor2MessageGeneration(int batchSize, ArrayList<ArrayList<AlternativeMessage>> messages,
-                                   int subthread,
-                                   int messageRate,
-                                   int threadNum,
-                                   int receiveThreadNum,
-                                   List<Actor2MessageGeneration> threads,
-                                   int size,
-                                   boolean synchronizer,
-                                   int mailboxes,
-                                   int numSubthreads) {
-        this.batchSize = batchSize;
-        this.subthread = subthread;
-        this.numSubthreads = numSubthreads;
-        this.messageRate = messageRate;
-        this.threads = threads;
-        this.running = true;
-        this.threadNum = threadNum;
-        this.receiveThreadNum = receiveThreadNum;
-        this.outqueue = new HashMap<Integer, ArrayList<AlternativeMessage>>();
-        this.inqueue = new ArrayList<ArrayList<Slice>>(mailboxes);
+    public void createMailbox(String mailboxName) {
+        this.outqueue.put(mailboxName, new HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>>());
+        this.inqueue.put(mailboxName, new ArrayList<ArrayList<Slice>>(mailboxes));
+        for (int i = 0; i < threadsSize; i++) {
+            this.outqueue.get(mailboxName).put(i, new ArrayList<>(10000));
+        }
         for (int i = 0; i <= mailboxes; i++) {
-            this.inqueue.add(new ArrayList<>(1000));
+            this.inqueue.get(mailboxName).add(new ArrayList<>());
         }
-        this.mailboxes = mailboxes;
-        this.messages = messages;
-        this.mailsize = 0;
-
-
-        this.removals = new ArrayList<>(10000);
-
-
-    }
-
-    private void subthreadOf(Actor2MessageGeneration actor2) {
-        this.inqueue = actor2.inqueue;
-    }
-
-    public static void main(String[] args) throws InterruptedException {
-        ArrayList<Actor2MessageGeneration> threads = new ArrayList<>();
-        ArrayList<Actor2MessageGeneration> allThreads = new ArrayList<>();
-        int mailboxes = 10;
-        int messageRate = 10;
-        int numSubthreads = 10;
-        int threadCount = 100;
-        int batchSize = 4;
-
-
-
-        ArrayList<ArrayList<AlternativeMessage>> messages = new ArrayList<>();
-
-
-
-
-
-
-        ArrayList<ArrayList<Actor2MessageGeneration>> allSubthreads = new ArrayList<>();
-        long start = System.currentTimeMillis();
-        int threadNum = 0;
-        int totalSize = threadCount * numSubthreads + 1;
-        for (int i = 0; i < threadCount; i++) {
-            Actor2MessageGeneration thread = new Actor2MessageGeneration(batchSize, messages, 0, messageRate, threadNum++, i, threads, totalSize, false, mailboxes, numSubthreads);
-            allThreads.add(thread);
-            threads.add(thread);
-        }
-        for (int i = 0; i < numSubthreads; i++) {
-            ArrayList<Actor2MessageGeneration> subthreads = new ArrayList<>();
-            for (int subthread = 1; subthread < numSubthreads; subthread++) {
-                Actor2MessageGeneration thread = new Actor2MessageGeneration(batchSize, messages, subthread, messageRate, threadNum++, i, threads, totalSize, false, mailboxes, numSubthreads);
-                thread.subthreadOf(allThreads.get(i));
-                subthreads.add(thread);
-
-                allThreads.add(thread);
-            }
-            allSubthreads.add(subthreads);
-        }
-
-        Actor2MessageGeneration synchronizer = new Actor2MessageGeneration(batchSize, messages, 0, messageRate, threadNum++, 101, new ArrayList<>(allThreads), totalSize, true, mailboxes, numSubthreads);
-        allThreads.add(synchronizer);
-        threads.add(synchronizer);
-        synchronizer.setThreads(new ArrayList<>(allThreads));
-
-
-        for (int i = 0; i < 100; i++) {
-            threads.get(i).setThreads(new ArrayList<>(allThreads));
-        }
-        for (ArrayList<Actor2MessageGeneration> subthreads : allSubthreads) {
-            for (Actor2MessageGeneration subthread : subthreads) {
-                subthread.setThreads(new ArrayList<>(allThreads));
-
-            }
-        }
-
-        for (int i = 0; i < 100; i++) {
-            threads.get(i).start();
-        }
-        for (ArrayList<Actor2MessageGeneration> subthreads : allSubthreads) {
-            for (Actor2MessageGeneration subthread : subthreads) {
-                subthread.start();
-            }
-        }
-        synchronizer.start();
-
-        int benchmarkTime = 5000;
-        Thread.sleep(benchmarkTime);
-        for (int i = 0; i < 100; i++) {
-            threads.get(i).running = false;
-        }
-        for (ArrayList<Actor2MessageGeneration> subthreads : allSubthreads) {
-            for (Actor2MessageGeneration subthread : subthreads) {
-                subthread.running = false;
-            }
-        }
-        threads.get(100).running = false;
-        for (int i = 0; i < 100; i++) {
-            threads.get(i).join();
-        }
-
-        threads.get(100).join();
-        for (ArrayList<Actor2MessageGeneration> subthreads : allSubthreads) {
-            for (Actor2MessageGeneration subthread : subthreads) {
-                subthread.join();
-            }
-        }
-        long totalRequests = 0;
-        for (Actor2MessageGeneration thread : allThreads) {
-            totalRequests += thread.requestCount;
-        }
-        long end = System.currentTimeMillis();
-        double seconds = (end - start) / 1000.0;
-        System.out.println(String.format("%d total requests", totalRequests));
-        double l = totalRequests / seconds;
-        System.out.println(String.format("%f requests per second", l));
-        System.out.println(String.format("Time taken: %f", seconds));
-        int contentions = 0;
-        for (int i = 0; i < threads.size(); i++) {
-            contentions += threads.get(i).contentions;
-        }
-        System.out.println(String.format("Contentions: %d", contentions));
-
     }
 
 
 
-    public boolean tryConnectToThread(Actor2MessageGeneration main, int startMailbox) {
+    private void subthreadOf(LanguageInterpreter Interpreter) {
+        this.inqueue = Interpreter.inqueue;
+    }
+
+
+
+
+    public boolean tryConnectToThread(LanguageInterpreter main, int startMailbox, HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>> outqueue, String mailboxName) {
         boolean success = false;
 
 
-        for (Map.Entry<Integer, ArrayList<AlternativeMessage>> entry : outqueue.entrySet()) {
+        for (Map.Entry<Integer, ArrayList<ArrayList<AlternativeMessage>>> entry : outqueue.entrySet()) {
             boolean foundMailbox = false;
             boolean subfail = false;
             boolean fail = false;
 
-            Actor2MessageGeneration thisThread = threads.get(entry.getKey());
+            LanguageInterpreter thisThread = threads.get(entry.getKey());
 
             for (int mb = 0; mb < main.mailboxes; mb++) {
                 int inbox = (mb + startMailbox) % main.mailboxes;
 
-                ArrayList<AlternativeMessage> messages = entry.getValue();
+                ArrayList<ArrayList<AlternativeMessage>> messages = entry.getValue();
                 if (messages.size() == 0) {
                     break;
                 }
 
                 int fallbackMode = -1;
-                int targetMode = thisThread.inqueue.get(inbox).size() + 1;
-                int messagesSize = messages.size();
+                int targetMode = thisThread.inqueue.get(mailboxName).get(inbox).size() + 1;
+                int messagesSize = messageRate;
                 for (int j = 0; j < main.threadNum - 1; j++) {
 
 
@@ -299,11 +338,11 @@ class Actor2MessageGeneration extends Thread {
                         assert thisThread.reading[inbox][main.threadNum] == targetMode;
 
 
-                        ArrayList<AlternativeMessage> messagesToSend = messages;
+                        ArrayList<AlternativeMessage> messagesToSend = messages.get(0);
 
-                        thisThread.inqueue.get(inbox).add(new Slice(thisThread.numSubthreads, messagesToSend, messageRate));
+                        thisThread.inqueue.get(mailboxName).get(inbox).add(new Slice(thisThread.numSubthreads, messagesToSend, messageRate));
                         // System.out.println("Sucessful send");
-                        thisThread.mailsize = mailsize + messagesSize;
+                        thisThread.mailsize = thisThread.mailsize + messagesSize;
                         thisThread.reading[inbox][main.threadNum] = fallbackMode;
 
                         removals.add(entry.getKey());
@@ -373,18 +412,18 @@ class Actor2MessageGeneration extends Thread {
 
         } // outqueue loop
         for (Integer key : removals) {
-            main.outqueue.remove(key);
+            main.outqueue.get(mailboxName).get(key).clear();
         }
         removals.clear();
         return success;
     }
 
-    public boolean tryReceiveInbox(Actor2MessageGeneration main, Run run, int inbox, int depth) {
+    public int tryReceiveInbox(LanguageInterpreter main, Run run, int inbox, int depth, String mailboxName) {
         boolean subcheck = false;
         boolean fail = false;
         boolean success = false;
         int targetMode = 0;
-
+        int returnValue = -1;
         for (int j = 0; j < main.threadNum; j++) {
             if (main.reading[inbox][j] == targetMode) {
                 fail = true;
@@ -424,38 +463,26 @@ class Actor2MessageGeneration extends Thread {
                 } // reading loop
 
             }
-            if (!subcheck && main.inqueue.get(inbox).size() > 0) {
+            if (!subcheck) {
                 assert main.reading[inbox][main.threadNum] == targetMode;
-                assert main.inqueue.get(inbox).size() > 0 : main.inqueue.get(inbox).size();
                 success = true;
 
-                Slice slice = main.inqueue.get(inbox).get(0);
+                Slice slice = main.inqueue.get(mailboxName).get(inbox).get(0);
                 if (slice != null) {
-
-
                     if (slice.popped() == 0) {
-                        main.inqueue.get(inbox).remove(0);
+                        main.inqueue.get(mailboxName).get(inbox).remove(0);
                     }
                     List<AlternativeMessage> subthread = slice.subthread(this.subthread);
                     main.mailsize = main.mailsize - subthread.size();
                     main.reading[inbox][main.threadNum] = NEITHER;
 
-                    for (AlternativeMessage message : subthread) {
-
-                        main.requestCount = main.requestCount + message.body;
-
-
-
-                        // System.out.println(String.format("%d received %d from %d", threadNum, message.body, message.from));
-                    }
+                    returnValue = subthread.get(0).body;
 
 
                     // System.out.println("Successful receive");
 
 
                     Thread.yield();
-                } else {
-                    main.reading[inbox][main.threadNum] = NEITHER;
                 }
 
             } // subcheck doubly safe
@@ -489,7 +516,9 @@ class Actor2MessageGeneration extends Thread {
                                 }
                                 if (!innerfail) {
 
-                                    transaction(main.threads.get(m), new Run(threads.get(m).threadNum, threads.get(m).threadNum), depth + 1, true);
+                                    transaction(main.threads.get(m),
+                                            new Run(threads.get(m).threadNum, threads.get(m).threadNum),
+                                            depth + 1, true, mailboxName);
                                 }
                                 main.threads.get(m).reading[inbox][main.threadNum] = NEITHER;
                                 break;
@@ -531,7 +560,7 @@ class Actor2MessageGeneration extends Thread {
                                 }
                             }
                             if (!innerfail) {
-                                transaction(main.threads.get(m), new Run(threads.get(m).threadNum, threads.get(m).threadNum), depth + 1, true);
+                                transaction(main.threads.get(m), new Run(threads.get(m).threadNum, threads.get(m).threadNum), depth + 1, true, mailboxName);
                             }
                             main.threads.get(m).reading[inbox][main.threadNum] = NEITHER;
                             break;
@@ -544,10 +573,10 @@ class Actor2MessageGeneration extends Thread {
 
 
         }
-        return success;
+        return returnValue;
     }
 
-    public boolean transaction(Actor2MessageGeneration main, Run run, int depth, boolean send) {
+    public boolean sendTransaction(LanguageInterpreter main, Run run, int depth, String mailboxName) {
         main.started = true;
         boolean preempted = false;
 
@@ -566,72 +595,49 @@ class Actor2MessageGeneration extends Thread {
             // System.out.println("Preempted");
             return false;
         }
-        if (send) {
             int inboxStart = (main.localNext.getAndAdd(1)) % main.mailboxes;
-            boolean success = tryConnectToThread(main, inboxStart);
+            boolean success = tryConnectToThread(main, inboxStart, outqueue.get(mailboxName), mailboxName);
             // successfully sent a message to a thread
+        return success;
+    }
+
+    public Integer transaction(LanguageInterpreter main, Run run, int depth, boolean send, String mailboxName) {
+        main.started = true;
+        boolean preempted = false;
+
+        for (int inbox = 0; inbox < main.mailboxes; inbox++) {
+            int targetMode = PREEMPTED;
+            for (int i = 0; i < main.threadsSize; i++) {
+                if (main.reading[inbox][i] == targetMode) {
+                    preempted = true;
+                    break;
+                }
+            }
         }
+
+
+        if (preempted) {
+            // System.out.println("Preempted");
+            return -1;
+        }
+
 
         // message loop
 
         // try read messages
 
         boolean successReceive = false;
+        Integer received = -1;
         for (int inbox = 0; inbox < main.mailboxes; inbox++) {
             int t = (main.localNext.getAndAdd(1)) % main.mailboxes;
-            if (mailsize > 0 && main.inqueue.get(t).size() > 0) {
-                successReceive = tryReceiveInbox(main, run, t, 0);
+            if (main.inqueue.get(mailboxName).get(t).size() > 0) {
+               received = tryReceiveInbox(main, run, t, 0, mailboxName);
+                break;
             }
 
         }
         main.started = false;
-        return successReceive;
-    }
-
-    public void run() {
-        Run run = new Run(threadNum, threadNum);
-        Random random = new Random();
-        List<Actor2MessageGeneration> rthreads = new ArrayList<>(threads);
-        Collections.reverse(rthreads);
-
-        if (subthread > 0) {
-            while (running) {
-                transaction(this, run, 0, false);
-                Thread.yield();
-            }
-        } else {
-
-            while (running || sent != delivered) {
-                if (sent == delivered) {
-                    /**
-                     there is contention writing to the same thread, so try spread it out
-                     **/
-                    // System.out.println(String.format("Subtread %d creating messages", subthread));
-                    // System.out.println("Creating messages to send...");
-                    for (int t = 0 ; t < batchSize; t++) {
-                        ArrayList<AlternativeMessage> batch = new ArrayList<>(messageRate);
-                        run.lastThread = (next.getAndAdd(1) + threadNum) % threadsSize;
-                        for (int i = 0; i < messageRate; i++) {
-
-                            AlternativeMessage message = new AlternativeMessage(threadNum, run.lastThread, 1);
-
-                            batch.add(message);
-
-
-                        }
-                        this.outqueue.put(run.lastThread, batch);
-                    }
-                    sent += batchSize * messageRate;
-                    // System.out.println("Created messages to send...");
-
-
-                } else {
-                    transaction(this, run, 0, true);
-                }
-            }
-
-
-        }
+        return received;
     }
 
     public static class Run {
@@ -660,13 +666,9 @@ class Actor2MessageGeneration extends Thread {
 
     public static class AlternativeMessage {
         private int body;
-        private int to;
-        private int from;
 
-        public AlternativeMessage(int from, int lastThread, int body) {
-            this.from = from;
+        public AlternativeMessage(int body) {
             this.body = body;
-            this.to = lastThread;
         }
     }
 
@@ -675,21 +677,22 @@ class Actor2MessageGeneration extends Thread {
         public AtomicInteger refs;
         public ArrayList<AlternativeMessage> messages;
         public int messageRate;
+
         public Slice(int size, ArrayList<AlternativeMessage> messages, int messageRate) {
             this.refs = new AtomicInteger(size);
             this.messageRate = messageRate;
             this.messages = messages;
             this.size = size;
         }
+
         public List<AlternativeMessage> subthread(int subthread) {
-            int start = (subthread * (messageRate) / size);
-            int end = (subthread + 1) * (messageRate / size);
-            // System.out.println(String.format("From range %d to %d", start, end));
-            return messages.subList(start, end);
+            return messages;
         }
+
         public boolean isRetrievedEverywhere() {
             return refs.get() == 0;
         }
+
         public int popped() {
             return this.refs.decrementAndGet();
         }

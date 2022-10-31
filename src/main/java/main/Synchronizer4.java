@@ -43,7 +43,7 @@ public class Synchronizer4 extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         int threadsCount = 11;
-        int size = 100000000;
+        int size = 10000000;
         List<Synchronizer4> threads = new ArrayList<>();
         int id = 0;
         int indexStart = 0;

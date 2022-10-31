@@ -187,7 +187,8 @@ public class Interpreter extends Thread {
                        boolean synchronizer,
                        int mailboxes,
                        int numSubthreads,
-                       List<String> programInstructionTypes, List<Map<String, String>> program,
+                       List<String> programInstructionTypes,
+                       List<Map<String, String>> program,
                        int programStart, HashMap<String,
                                    Integer> variables,
                        Map<String, Integer> labels

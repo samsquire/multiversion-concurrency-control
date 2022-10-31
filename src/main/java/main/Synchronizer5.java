@@ -2,7 +2,7 @@ package main;
 
 import java.util.*;
 
-public class Synchronizer extends Thread {
+public class Synchronizer5 extends Thread {
 
     public int counter;
     private int acksEnd;
@@ -10,12 +10,12 @@ public class Synchronizer extends Thread {
 
     private int NEITHER = -1;
     private final int size;
-    private Synchronizer main;
+    private Synchronizer5 main;
     private DoublyLinkedList data;
     private final int id;
     private final boolean synchronizer;
     private int threadsSize;
-    private ArrayList<Synchronizer> threads;
+    private ArrayList<Synchronizer5> threads;
     private volatile boolean running = true;
     private volatile int[] announces;
     private volatile int[] acks;
@@ -31,11 +31,11 @@ public class Synchronizer extends Thread {
     private int announceIndex = 0;
     public int callbackCurrent;
     private int otherCurrentAnnounce;
-    private List<Synchronizer> waitingFor = new ArrayList<>();
+    private List<Synchronizer5> waitingFor = new ArrayList<>();
     private int[] created;
 
 
-    public Synchronizer(int id, boolean synchronizer, DoublyLinkedList data, int size, Synchronizer main) {
+    public Synchronizer5(int id, boolean synchronizer, DoublyLinkedList data, int size, Synchronizer5 main) {
         this.id = id;
 
         this.synchronizer = synchronizer;
@@ -57,34 +57,34 @@ public class Synchronizer extends Thread {
         int size = 200;
         int id = 0;
         DoublyLinkedList data = new DoublyLinkedList(0, System.currentTimeMillis());
-        List<Synchronizer> threads = new ArrayList<>();
-        List<Synchronizer> synchronizers = new ArrayList<>();
+        List<Synchronizer5> threads = new ArrayList<>();
+        List<Synchronizer5> synchronizers = new ArrayList<>();
 
         for (int i = 0; i < numberSynchronizers; i++) {
             System.out.println(String.format("Creating synchronizer %d", id));
-            Synchronizer syncer = new Synchronizer(id++, true, data, size, null);
+            Synchronizer5 syncer = new Synchronizer5(id++, true, data, size, null);
             threads.add(syncer);
             synchronizers.add(syncer);
         }
         for (int i = 0; i < numberThreads; i++) {
             System.out.println(String.format("Creating thread %d", id));
 
-            Synchronizer syncer = new Synchronizer(id++, false, data, size, synchronizers.get(0));
+            Synchronizer5 syncer = new Synchronizer5(id++, false, data, size, synchronizers.get(0));
             threads.add(syncer);
         }
-        for (Synchronizer syncer : threads) {
+        for (Synchronizer5 syncer : threads) {
             syncer.setThreads(new ArrayList<>(threads));
         }
         System.out.println("Starting test");
         long start = System.currentTimeMillis();
-        for (Synchronizer syncer : threads) {
+        for (Synchronizer5 syncer : threads) {
             syncer.start();
         }
         Thread.sleep(5000);
-        for (Synchronizer syncer : threads) {
+        for (Synchronizer5 syncer : threads) {
             syncer.running = false;
         }
-        for (Synchronizer syncer : threads) {
+        for (Synchronizer5 syncer : threads) {
             syncer.join();
         }
         System.out.println("Finished");
@@ -125,7 +125,7 @@ public class Synchronizer extends Thread {
 
         double seconds = (end - start) / 1000.0;
         int totalRequests = synchronizers.get(0).counter;
-        for (Synchronizer synchronizer : threads) {
+        for (Synchronizer5 synchronizer : threads) {
             totalRequests = totalRequests + synchronizer.counter;
         }
         System.out.println(String.format("%d total requests", totalRequests));
@@ -137,7 +137,7 @@ public class Synchronizer extends Thread {
 
     public void run() {
         int lastSynchronizer = 0;
-        HashSet<Synchronizer> blocked = new HashSet<>();
+        HashSet<Synchronizer5> blocked = new HashSet<>();
         while (running) {
             if (synchronizer) {
 
@@ -241,7 +241,7 @@ public class Synchronizer extends Thread {
                 for (int a = 0; a < threads.size(); a++) {
                     int syncId = (lastSynchronizer + a) % threadsSize;
                     lastSynchronizer = syncId;
-                    Synchronizer synchronizer = threads.get(syncId);
+                    Synchronizer5 synchronizer = threads.get(syncId);
                     if (synchronizer.updating) {
                         continue;
                     }
@@ -263,7 +263,7 @@ public class Synchronizer extends Thread {
                         for (int o = 0; o < threads.size(); o++) {
                             int otherSyncId = o;
 
-                            Synchronizer other = threads.get(otherSyncId);
+                            Synchronizer5 other = threads.get(otherSyncId);
                             if (other.updating) {
                                 continue;
                             }
@@ -328,7 +328,6 @@ public class Synchronizer extends Thread {
                 }
             }
             if (!synchronizer) {
-                if (announcements.values().size() == 0) {
                     this.updating = true;
                     StringBuilder sb = new StringBuilder();
                     sb.append("newItem.head");
@@ -426,90 +425,7 @@ public class Synchronizer extends Thread {
 
                             }
 
-                            data.reading[id] = NEITHER;
-                            // System.out.println("Successful exclusive execute");
-
-
-//                            Thread.yield();
-                        } else {
-                            failAndAnnounce();
-                        }
-
-                    } // subcheck doubly safe
-                    else {
-                        failAndAnnounce();
-                    }
-                } else {
-                    // System.out.println("Checking for acks");
-                    boolean queued = false;
-                    int start = 0;
-                    for (int i = 0; i < acks.length; i++) {
-                        if (acks[i] != NEITHER) {
-                            queued = true;
-                            start = i;
-                            break;
-                        }
-
-                    }
-                    if (!queued) {
-//                        Thread.yield();
-                        // System.out.println("No scheduled work");
-                        continue;
-                    }
-//                    System.out.println("Has acks");
-
-
-                    boolean subcheck = false;
-                    boolean fail = false;
-                    boolean success = false;
-                    int targetMode = 0;
-
-                    for (int j = 0; j < id; j++) {
-                        if (data.reading[j] == targetMode) {
-                            fail = true;
-
-                            break;
-                        } // data.reading test
-                    }
-                    for (int j = id + 1; j < threadsSize; j++) {
-                        if (data.reading[j] == targetMode) {
-                            fail = true;
-                            break;
-                        } // data.reading test
-                    }
-                    // data.reading loop
-
-
-                    if (!fail) {
-                        data.reading[id] = targetMode;
-
-                        for (int j = threadsSize - 1; j >= 0; j--) {
-                            if (j != id && data.reading[j] == targetMode) {
-
-
-                                subcheck = true;
-                                break;
-                            } // data.reading check
-                        } // data.reading loop
-
-                        if (!subcheck) {
-                            for (int j = 0; j < threadsSize; j++) {
-                                if (j != id && data.reading[j] == targetMode) {
-
-
-                                    subcheck = true;
-                                    break;
-                                } // data.reading check
-                            } // data.reading loop
-
-                        }
-                        if (!subcheck) {
-                            assert data.reading[id] == targetMode;
-                            success = true;
-
-
-
-                            for (int i = start; i < acks.length; i++) {
+                            for (int i = 0; i < acks.length; i++) {
 
                                 if (acks[i] != NEITHER) {
                                     Announcement announcement = this.pending.get(acks[i]);
@@ -525,20 +441,27 @@ public class Synchronizer extends Thread {
                                     this.acks[i] = NEITHER;
 
 
+                                } else {
+                                    break;
                                 }
 
 
                             }
+
                             data.reading[id] = NEITHER;
+                            // System.out.println("Successful exclusive execute");
+
+
+//                            Thread.yield();
                         } else {
-                            data.reading[id] = NEITHER;
+                            failAndAnnounce();
                         }
 
-
-                    } else {
-                        data.reading[id] = NEITHER;
+                    } // subcheck doubly safe
+                    else {
+                        failAndAnnounce();
                     }
-                } // create-or-execute
+
             }
         }
     }
@@ -553,7 +476,7 @@ public class Synchronizer extends Thread {
         this.updating = false;
     }
 
-    private void setThreads(ArrayList<Synchronizer> threads) {
+    private void setThreads(ArrayList<Synchronizer5> threads) {
         this.threadsSize = threads.size();
         this.threads = threads;
         this.callbacks = new Announcement[size];
@@ -570,14 +493,14 @@ public class Synchronizer extends Thread {
     }
 
     private class Announcement {
-        private Synchronizer synchronizer;
+        private Synchronizer5 synchronizer;
         private final int announceId;
         public Object item;
         public Integer key;
         private Runnable runnable;
         private ArrayList<Announcement> queued;
 
-        public Announcement(Synchronizer synchronizer, int announceId, Object item, Integer key, Runnable runnable) {
+        public Announcement(Synchronizer5 synchronizer, int announceId, Object item, Integer key, Runnable runnable) {
             this.synchronizer = synchronizer;
             this.announceId = announceId;
             this.item = item;
