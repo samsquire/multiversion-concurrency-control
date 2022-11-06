@@ -6,10 +6,13 @@ public class DoublyLinkedList {
     private long timestamp;
     public volatile int[] reading;
     public volatile DoublyLinkedList head = null;
-    public volatile  DoublyLinkedList tail = null;
+    public volatile DoublyLinkedList tail = null;
+    public volatile ReferencePassing.Reference reference = null;
     public DoublyLinkedList(Integer value, long timestamp) {
         this.value = value;
+
         this.timestamp = timestamp;
+        this.reference = new ReferencePassing.Reference(this, 0);
     }
     public DoublyLinkedList insert(Integer value) {
         int previousModCount = modCount;

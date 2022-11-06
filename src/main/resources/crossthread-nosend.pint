@@ -1,7 +1,6 @@
 threads 25
 <start>
 mailbox numbers
-mailbox methods
 set running 1
 set current_thread 0
 set received_value 0
@@ -10,15 +9,11 @@ set increment 1
 :while1
 while running :end
 receive numbers received_value :send
-receivecode methods :send :send
 :send
 add received_value current
 addv current_thread 1
 modulo current_thread 25
 send numbers current_thread increment :while1
-sendcode methods current_thread :print
 endwhile :while1
 jump :end
-:print
-return
 :end

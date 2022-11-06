@@ -24,6 +24,7 @@ public class ForLoopAST extends AST {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("for (%s; %s; %s)", assignment, expression, postexpression));
+        sb.append("\n");
         for (AST child : children) {
             sb.append(String.format("- %s\n", child));
         }

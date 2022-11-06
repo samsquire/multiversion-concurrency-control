@@ -6,7 +6,16 @@ function deposit(int account, int amount) {
 function withdraw(int account, int amount) {
     accounts[account].balance -= amount;
 }
-set hash accounts = {}
+set hash accounts = {};
 for (i = 0 ; i < 100; i++) {
-    balance = randomInt(2500)
+    accounts[i] = {
+        balance = randomInt(2500);
+    }
+}
+while (running) {
+    source_account = randomInt(100);
+    destination_account = randomInt(100);
+    amount = randomInt(2500);
+    withdraw(source_account, amount);
+    deposit(destination_account, amount);
 }
