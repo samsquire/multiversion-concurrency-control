@@ -9,6 +9,7 @@ This repository is where I do experimental work on concurrency and parallelism p
 * 4 variations of a multithreaded parallel actor implementations
 * Concurrent looping (parallel mapreduce for nested loops)
 * A multiconsumer multiproducer ringbuffer which is threadsafe This is inspired by [Alexander Krizhanovsky](https://www.linuxjournal.com/content/lock-free-multi-producer-multi-consumer-queue-ring-buffer)
+* A programming language
 
 The headline implementation is a multithreaded multiversion concurrency control solution which handles safe and concurrent access to a database of integers without locking. We timestamp read events and check if there is any read event with a timestamp that is lower than us, in which case, we restart our transaction.
 
