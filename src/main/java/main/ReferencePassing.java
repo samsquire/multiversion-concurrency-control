@@ -10,12 +10,6 @@ import static org.gradle.internal.impldep.com.google.common.collect.ImmutableLis
 
 public class ReferencePassing extends Thread {
 
-    private ReentrantReadWriteLock readLock = new ReentrantReadWriteLock();
-    private ReentrantReadWriteLock writeLock = new ReentrantReadWriteLock();
-    private List<ReferencePassing> threads;
-    private int threadCount;
-    private String mode;
-    private boolean running = true;
 
     public static void main(String[] args) throws InterruptedException {
         int threadCount = 100;
@@ -51,23 +45,36 @@ public class ReferencePassing extends Thread {
         this.threadCount = threads.size();
     }
 
-    private List<List<Reference>> readRequests;
-    private List<List<Reference>> writeRequests;
+    private ReentrantReadWriteLock readLock = new ReentrantReadWriteLock();
+    private ReentrantReadWriteLock writeLock = new ReentrantReadWriteLock();
+    private List<ReferencePassing> threads;
+
+    private int threadCount;
+    private String mode;
+    private boolean running = true;
+    private List<Map<Reference, ReferenceProgress>> requests;
     private List<List<Reference>> answers;
     private Map<String, Reference> datas;
     public static class Reference {
         public DoublyLinkedList data;
         public int owner;
+        public boolean end;
+
         public Reference(DoublyLinkedList data, int owner) {
             this.data = data;
             this.owner = owner;
         }
 
-        public List<Reference> next() {
+        public Reference next() {
             if (data.tail != null) {
-                return of(data.tail.reference);
+                return data.tail.reference;
             }
             return null;
+        }
+
+        public Reference insert(int value) {
+            DoublyLinkedList insert = this.data.insert(value);
+            return insert.reference;
         }
     }
     public ReferencePassing(String mode) {
@@ -77,20 +84,69 @@ public class ReferencePassing extends Thread {
     public void run() {
         while (this.running) {
             if (mode.equals("worker")) {
-                if (readRequests.size() > 0 && readRequests.get(0).size() > 0) {
+                if (answers.size() > 0 && answers.get(0).size() > 0) {
                     List<Reference> activeReference = null;
                     readLock.writeLock().lock();
-                    activeReference = readRequests.get(0);
+                    activeReference = answers.remove(0);
+                    Map<Reference, ReferenceProgress> activeAnswers = requests.get(0);
                     readLock.writeLock().unlock();
+                    HashMap<Reference, ReferenceProgress> newRequests = new HashMap<>();
                     for (Reference reference : activeReference) {
-                        readRequests.add(reference.next());
+                        if (reference.end == true) {
+                            reference.insert(activeAnswers.get(reference).total + 1);
+                        }
+                         else if (activeAnswers.containsKey(reference)) {
+                            Reference next = reference.next();
+                            newRequests.put(next, new ReferenceProgress(reference.data.value, reference, next));
+                        } else {
+                            Reference current = reference.next();
+                            while (current != null) {
+                                newRequests.put(current,
+                                        activeAnswers.get(reference));
+                                current = reference.next();
+                                if (current == null) {
+                                    activeAnswers.get(reference).end = true;
+                                }
+                            }
+
+                        }
+                    }
+                    requests.add(newRequests);
+                    if (activeAnswers.size() == 0) {
+                        readLock.writeLock().lock();
+                        requests.remove(activeAnswers);
+                        readLock.writeLock().unlock();
                     }
                 }
 
             }
             if (mode.equals("copier")) {
+                for (ReferencePassing thread : threads) {
+                    thread.writeLock.writeLock().lock();
+                    Map<Reference, ReferenceProgress> remove = thread.requests.remove(0);
+                    thread.writeLock.writeLock().unlock();
+                    List<Reference> answers = new ArrayList<>();
+                    for (Map.Entry<Reference, ReferenceProgress> item : remove.entrySet()) {
+                        answers.add(item.getKey());
+                    }
+                    thread.writeLock.writeLock().lock();
+                    thread.answers.add(answers);
+                    thread.writeLock.writeLock().unlock();
 
+                }
             }
+        }
+    }
+
+    public static class ReferenceProgress {
+        public boolean end;
+        int total;
+        private final Reference past;
+        private final Reference incoming;
+        public ReferenceProgress(int total, Reference past, Reference incoming) {
+            this.total = total;
+            this.past = past;
+            this.incoming = incoming;
         }
     }
 }

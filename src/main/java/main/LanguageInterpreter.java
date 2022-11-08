@@ -60,17 +60,26 @@ public class LanguageInterpreter extends Thread {
 
 
 
-
-        List<Map<String, String>> codegen = parsedProgram.codegen();
+        CodeSegment codegen = new CodeSegment(new ArrayList<String>(), new ArrayList<Map<String, String>>());
+//        CodeSegment codegen = parsedProgram.codegen();
+//        System.out.println(codegen.instructions);
+//        System.out.println(codegen.parsed);
+//        assert codegen.instructions.size() == codegen.parsed.size() : codegen.parsed.size();
+//        for (int i = 0 ; i < codegen.instructions.size(); i++) {
+//            if (codegen.instructions.get(i).equals("createlabel")) {
+//                labels.put(codegen.parsed.get(i).get("label"), i);
+//            }
+//        }
+//        System.out.println(labels);
 
         while (running) {
             int pc = programStart;
             //System.out.println(String.format("program start %d", pc));
             int jump = -1;
-            while (running && pc < codegen.size()) {
-                System.out.println("Running");
-                String instruction = programInstructionTypes.get(pc);
-                Map<String, String> parsed = codegen.get(pc);
+            while (running && pc < codegen.instructions.size()) {
+//                System.out.println("Running");
+                String instruction = codegen.instructions.get(pc);
+                Map<String, String> parsed = codegen.parsed.get(pc);
                 // System.out.println(String.format("%d %s %s %s", pc, instruction, parsed, variables));
                 switch (instruction) {
                     case "set":
@@ -165,10 +174,6 @@ public class LanguageInterpreter extends Thread {
             }
 
         }
-
-    private void codegen(AST parsed) {
-
-    }
 
     private int NEITHER = -1;
     private int PREEMPTED = -2;

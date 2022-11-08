@@ -26,7 +26,7 @@ public class LanguageInterpreterRunner {
     private void run() {
         try {
             long start = System.currentTimeMillis();
-            URL res = getClass().getClassLoader().getResource("bank.pint");
+            URL res = getClass().getClassLoader().getResource("loop.pint");
             File file = Paths.get(res.toURI()).toFile();
             String absolutePath = file.getAbsolutePath();
             Scanner reader = new Scanner(file);

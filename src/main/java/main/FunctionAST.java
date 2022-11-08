@@ -1,7 +1,9 @@
 package main;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class FunctionAST extends AST {
     private final List<Argument> arguments;
@@ -30,5 +32,24 @@ public class FunctionAST extends AST {
             sb.append(String.format("- %s\n", child));
         }
         return sb.toString();
+    }
+
+    @Override
+    public CodeSegment codegen() {
+        List<Map<String, String>> genned = new ArrayList<>();
+        List<String> instructions = new ArrayList<>();
+        Map<String, String> parsed = new HashMap<String, String>();
+        parsed.put("label", functionName);
+        instructions.add("createlabel");
+        genned.add(parsed);
+        for (AST ast : children) {
+            System.out.println(String.format("Generating codegen for ast %s", ast));
+            CodeSegment codegen = ast.codegen();
+            System.out.println(codegen);
+            instructions.addAll(codegen.instructions);
+            genned.addAll(codegen.parsed);
+        }
+
+        return new CodeSegment(instructions, genned);
     }
 }

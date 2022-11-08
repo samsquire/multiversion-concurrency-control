@@ -6,9 +6,9 @@ import java.util.Map;
 public class StructureAST extends AST {
     private final Map<AST, AST> ast;
 
-    public StructureAST() {
+    public StructureAST(Map<AST, AST> data) {
         super();
-        this.ast = new HashMap<>();
+        this.ast = data;
     }
 
     @Override
@@ -19,7 +19,7 @@ public class StructureAST extends AST {
         StringBuilder sb = new StringBuilder();
         sb.append("HASH");
         for (Map.Entry<AST, AST> entry : ast.entrySet()) {
-            sb.append(String.format("HASH ENTRY %s = %s", entry.getKey()));
+            sb.append(String.format("ENTRY %s = %s", entry.getKey(), entry.getValue()));
         }
         return sb.toString();
     }

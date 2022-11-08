@@ -1,9 +1,6 @@
 package main;
 
-import java.util.List;
-import java.util.Map;
-
-import static java.util.Arrays.asList;
+import java.util.ArrayList;
 
 public abstract class AST {
 
@@ -12,8 +9,8 @@ public abstract class AST {
     public AST parent;
     public boolean valid;
 
-    public List<Map<String, String>> codegen() {
-        return asList();
+    public CodeSegment codegen() {
+        return new CodeSegment(new ArrayList<>(), new ArrayList<>());
     }
 
     public abstract void add(AST astNode);

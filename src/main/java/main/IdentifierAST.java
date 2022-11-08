@@ -1,11 +1,19 @@
 package main;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class IdentifierAST extends AST {
     private final String token;
+    private final String type;
 
-    public IdentifierAST(String token) {
+
+    public IdentifierAST(String token, String type) {
         super();
         this.token = token;
+        this.type = type;
     }
 
     @Override
@@ -14,5 +22,21 @@ public class IdentifierAST extends AST {
     }
     public String toString() {
         return String.format("Identifier %s",  token);
+    }
+
+    @Override
+    public CodeSegment codegen() {
+        System.out.println("Generating identifier AST");
+        List<String> instructions = new ArrayList<>();
+        List<Map<String, String>> genned = new ArrayList<>();
+        if (type.equals("string")) {
+            instructions.add("getvariable");
+        } else {
+            instructions.add("pushint");
+        }
+        HashMap<String, String> parsed = new HashMap<>();
+        parsed.put("token", token);
+        genned.add(parsed);
+        return new CodeSegment(instructions, genned);
     }
 }

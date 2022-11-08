@@ -53,7 +53,7 @@ public class InterpreterRunner {
             List<String> programInstructionTypes = new ArrayList<>();
             int pc = 0;
             int programStart = 0;
-            HashMap<String, String> empty = new HashMap();
+            HashMap<String, String> empty = new HashMap<>();
             while (reader.hasNextLine()) {
                 String data = reader.nextLine();
                 int nextPc = pc + 1;

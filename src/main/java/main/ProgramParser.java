@@ -44,6 +44,7 @@ public class ProgramParser {
         this.tokenHandling.put("type property", "promote");
         this.tokenHandling.put("type array", "append");
         this.tokenHandling.put("type arrayend", "leave");
+        this.tokenHandling.put("type token", "append");
         this.depth = new int[3];
         Arrays.fill(depth, 0);
         this.lastDepth = new int[3];
@@ -381,6 +382,7 @@ public class ProgramParser {
             this.last_char = this.getChar(this.pos, peek);
             this.lastToken = "opencurly";
             this.depthChange = true;
+            this.type = "hash";
             this.depthWhich = CURLY_BRACKETS;
             this.depthAmount = 1;
             for (int i = 0 ; i < depth.length; i++) {
@@ -518,7 +520,7 @@ public class ProgramParser {
         System.out.println(programString.substring(this.pos, programString.length()));
         AST tokenStop = isTokenStop(token, customStop);
         if (tokenStop != null) {
-            System.out.println(String.format("%s Token stop parse expression", label));
+            System.out.println(String.format("%s Token stop parse expression %s", label, tokenStop));
             // rewind(1);
             tokenStop.setStopped();
             return tokenStop;
@@ -569,9 +571,6 @@ public class ProgramParser {
             System.out.println(String.format("Left is %s", newLeft));
             newLeft.parent = left;
 
-
-
-
             boolean expressionStop = isExpressionStop("mainparse", newLeft, depthToUse, depthExpect);
 
             boolean stopped = false;
@@ -602,7 +601,7 @@ public class ProgramParser {
 //                left.setStopped();
 //                return left;
 //            }
-            System.out.println(String.format("%s new left %s", label, newLeft));
+            System.out.println(String.format("%s new left %s %s", type, label, newLeft));
             String typeCheck = String.format("type %s", peekedType);
             String behaviour = "";
             System.out.println(typeCheck);
@@ -631,6 +630,7 @@ public class ProgramParser {
 
                         left.add(newLeft);
                         peeked = getToken(true);
+                        System.out.println(String.format("peeked is %s", peeked));
                         tokenStop = isTokenStop(peeked, customStop);
                         if (tokenStop != null) {
 //                        rewind(1);
@@ -647,6 +647,8 @@ public class ProgramParser {
                             newLeft.add(left);
                             left = newLeft;
                             peeked = getToken(true);
+                            System.out.println(String.format("peeked is %s", peeked));
+
                             tokenStop = isTokenStop(peeked, customStop);
                             if (tokenStop != null) {
 //                            rewind(1);
@@ -677,9 +679,11 @@ public class ProgramParser {
         }
 
         if (ast == END_OF_EXPRESSION) {
+            System.out.println(String.format("%s end of expression", label));
             return true;
         }
         if (ast == END_OF_BLOCK) {
+            System.out.println(String.format("%s end of block", label));
             return true;
         }
         for (int i = 0 ; i < depthToUse.length; i++) {
@@ -687,7 +691,7 @@ public class ProgramParser {
         }
         if (this.previousDepthChange && Arrays.equals(depthToUse, depthExpect) && !Arrays.equals(depthToUse, lastDepth)) {
             System.out.println(String.format("%s DEPTH CHANGE", ast));
-            // return true;
+            return true;
         }
         System.out.println(String.format("%s expression stop", ast));
         return false;
@@ -714,10 +718,10 @@ public class ProgramParser {
         if (token.equals("closecurly")) {
             return END_OF_BLOCK;
         }
-        if (token.equals("closebracket")) {
-            System.out.println("WAS END OF PARAMETERS");
-            return END_OF_PARAMETERS;
-        }
+//        if (token.equals("closebracket")) {
+//            System.out.println("WAS END OF PARAMETERS");
+//            return END_OF_PARAMETERS;
+//        }
         return null;
     }
 
@@ -735,11 +739,20 @@ public class ProgramParser {
             ast = new OperatorAST(token);
         }
         if (this.type.equals("identifier")) {
-            ast = new IdentifierAST(token);
+            if (isNumber(token)) {
+                ast = new IdentifierAST(token, "int");
+            } else {
+                ast = new IdentifierAST(token, "string");
+
+            }
         }
         if (this.type.equals("arraybegin")) {
             System.out.println("Array access");
             ast = new ArrayAccessAST();
+        }
+        if (token.equals("openbracket")) {
+            System.out.println("Method call");
+            ast = new ParameterListAST();
         }
         if (token.equals("closesquare")) {
             return new ArrayEndAST();
@@ -753,38 +766,57 @@ public class ProgramParser {
             int position = pos;
             char letter = programString.charAt(position);
             System.out.println();
-            while (letter != '\n') {
+            while (position < programString.length() -1) {
                 System.out.print(letter);
-                letter = programString.charAt(position++);
+                letter = programString.charAt(++position);
             }
             System.out.println();
             for (int i = 0 ; i < depth.length; i++) {
                 currentDepthExpect[i] = depth[i];
-                System.out.println(String.format("Structure expected: %d", lastDepth[i]));
             }
             Map<AST, AST> data = new HashMap<>();
-            ast = new StructureAST();
+            ast = new StructureAST(data);
             AST current = ast;
 
             while (!isExpressionStop("structureparse", current, depth, depthExpect)) {
                 System.out.println("STRUCTURE PARSING X");
                 AST fieldKey = parseExpression("label", 0, List.of("eq"), depthExpect);
-                if (isExpressionStop("structureparse", fieldKey, depth, depthExpect) || fieldKey.isStopped()) {
-                    System.out.println("STRUCTURE EXPRESSION END");
-                    return ast;
+                if (fieldKey.equals(END_OF_BLOCK)) {
+                    break;
                 }
+//                if (isExpressionStop("structurekeyparse", fieldKey, depth, depthExpect)) {
+//                    System.out.println("STRUCTURE EXPRESSION END");
+//                    return ast;
+//                }
 
 
                 System.out.println(String.format("Structure parsing: %s", fieldKey));
-                AST fieldValue = parseExpression("label", 0, List.of("comma", "eol"), depthExpect);
-                if (isExpressionStop("structureparse", fieldValue, depth, currentDepthExpect) || fieldKey.isStopped()) {
-                    System.out.println("STRUCTURE EXPRESSION END 2");
-                    return ast;
+                AST fieldValue = parseExpression("label", 0, List.of("semicolon"), depthExpect);
+                if (fieldValue.equals(END_OF_BLOCK)) {
+                    break;
                 }
+                String comma = getToken(true);
+                if (comma.equals("comma")) {
+                    getToken(false);
+                }
+//                if (isExpressionStop("structurevalueparse", fieldValue, depth, currentDepthExpect)) {
+//                    System.out.println("STRUCTURE EXPRESSION END 2");
+//                    return ast;
+//                }
                 System.out.println(String.format("Structure Field value: %s", fieldValue));
                 data.put(fieldKey, fieldValue);
                 for (int i = 0 ; i < depth.length; i++) {
                     System.out.println(String.format("Structure end processing depth %d", lastDepth[i]));
+                }
+                String token1 = getToken(true);
+                System.out.println(String.format("Structure lookahead %s", token1));
+                if ("semicolon".equals(token1)) {
+                    System.out.println("Reached end of structure");
+                    token1 = getToken(false);
+                    System.out.println(String.format("After semicolon, end of structure", token1));
+                    if (token1.equals("closecurly")) {
+                        break;
+                    }
                 }
                 current = fieldValue;
             }
@@ -820,14 +852,14 @@ public class ProgramParser {
         if (token == null) {
             return null;
         }
-        Map<String, AST> ast = new HashMap<>();
+        Map<AST, AST> ast = new HashMap<>();
         while (token != null && !token.equals("closecurly")) {
             String fieldName = getToken(false);
             AST fieldValue = parseExpression("label", 0, null, new int[3]);
-            ast.put(fieldName, fieldValue);
+            ast.put(fieldValue, fieldValue);
             token = getToken(false);
         }
-        return new StructureAST();
+        return new StructureAST(ast);
     }
 
     private AST parseMain(String token, int[] depthExpect) {
@@ -876,7 +908,7 @@ public class ProgramParser {
                         letter = programString.charAt(++position);
                     }
                     System.out.println();
-                    AST postexpression = parseExpression("looppostexpression", 0, null, depthExpect);
+                    AST postexpression = parseExpression("looppostexpression", 0, List.of("closebracket"), depthExpect);
 
                     String curly = getToken(false);
                     System.out.println(String.format("Loop body start %s %s", curly, postexpression));

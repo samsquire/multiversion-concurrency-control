@@ -1,5 +1,7 @@
 threads 25
 <start>
 for (i = 0 ; i < 100; i++) {
-    hello = 6;
+    accounts[i] = {
+        balance = randomInt(2500);
+    }
 }
