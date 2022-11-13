@@ -70,6 +70,27 @@ endwhile :while1
 
 This starts 25 threads which each try to receive a message and send a message to another thread and add one to the counter of the number of messages received.
 
+# High level language
+
+```
+threads 25
+<start>
+set struct accounts = {
+    '1' = '700';
+};
+for (i = 0 ; i < 100; i++) {
+    accounts[i] = {
+        balance = randomInt(2500);
+    }
+}
+function deposit(int account, int amount) {
+    accounts[account].balance += amount;
+}
+function withdraw(int account, int amount) {
+    accounts[account].balance -= amount;
+}
+```
+
 # Multiversion concurrency control - How it works
 
 The database offers keys of values which are integers. They are named, in the transaction examples, the keys are A and B.
