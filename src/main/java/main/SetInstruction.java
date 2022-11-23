@@ -13,4 +13,6 @@ public class SetInstruction implements InstructionHandler {
         System.out.println("Parsing set instruction " + args.get(2));
         return parsed;
     }
+
+
 }

@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 
 public class IdentifierAST extends AST {
-    private final String token;
-    private final String type;
+    public final String token;
+    public final String type;
 
 
     public IdentifierAST(String token, String type) {
@@ -30,11 +30,12 @@ public class IdentifierAST extends AST {
         List<String> instructions = new ArrayList<>();
         List<Map<String, String>> genned = new ArrayList<>();
         if (type.equals("string")) {
-            instructions.add("getvariable");
+            instructions.add("load");
         } else {
             instructions.add("pushint");
         }
         HashMap<String, String> parsed = new HashMap<>();
+        parsed.put("variable", token);
         parsed.put("token", token);
         genned.add(parsed);
         return new CodeSegment(instructions, genned);

@@ -8,10 +8,12 @@ import java.util.regex.Pattern;
 
 public class LanguageInterpreter extends Thread {
     private final int programStart;
+    public final HashMap<String, Map<String, String>> mapvariables;
     private Pattern pattern;
     private final AST parsedProgram;
     private Matcher matcher;
-    public HashMap<String, Integer> variables;
+    public HashMap<String, Integer> intvariables;
+    public HashMap<String, String> stringvariables;
     private HashMap<String, InstructionHandler> instructionHandlers;
     private List<String> programInstructionTypes;
     public String program;
@@ -22,12 +24,17 @@ public class LanguageInterpreter extends Thread {
     private int pos;
     private boolean end;
     private char last_char;
+    private Map<String, VariableDeclaration> types;
+    private Map<String, Integer> intstack;
+    private List<String> stringstack;
 
     public LanguageInterpreter(AST parsedProgram, ArrayList<ArrayList<LanguageInterpreter.AlternativeMessage>> messages, int subthread, int messageRate, int threadNum, int i, ArrayList<Object> objects, int totalSize, boolean synchronizer, int mailboxes, int numSubthreads, List<String> programInstructionTypes, String programString, int programStart, HashMap<String, Integer> variables, Map<String, Integer> labels) {
         this.programInstructionTypes = programInstructionTypes;
         this.program = program;
         this.programStart = programStart;
-        this.variables = new HashMap<>(variables);
+        this.intvariables = new HashMap<>(variables);
+        this.stringvariables = new HashMap<>();
+        this.mapvariables = new HashMap<>();
         this.subthread = subthread;
         this.numSubthreads = numSubthreads;
         this.messageRate = messageRate;
@@ -46,6 +53,8 @@ public class LanguageInterpreter extends Thread {
         this.removals = new ArrayList<>(10000);
         this.outqueue = new HashMap<>();
         this.inqueue = new HashMap<>();
+        this.types = new HashMap<>();
+        this.stringstack = new ArrayList<>();
 
 
     }
@@ -58,22 +67,41 @@ public class LanguageInterpreter extends Thread {
         List<LanguageInterpreter> rthreads = new ArrayList<>(threads);
         Collections.reverse(rthreads);
 
+        System.out.println("PARSED PROGRAM");
+        System.out.println(parsedProgram);
 
-
-        CodeSegment codegen = new CodeSegment(new ArrayList<String>(), new ArrayList<Map<String, String>>());
-//        CodeSegment codegen = parsedProgram.codegen();
-//        System.out.println(codegen.instructions);
-//        System.out.println(codegen.parsed);
-//        assert codegen.instructions.size() == codegen.parsed.size() : codegen.parsed.size();
-//        for (int i = 0 ; i < codegen.instructions.size(); i++) {
-//            if (codegen.instructions.get(i).equals("createlabel")) {
-//                labels.put(codegen.parsed.get(i).get("label"), i);
-//            }
-//        }
-//        System.out.println(labels);
-
+//        CodeSegment codegen = new CodeSegment(new ArrayList<String>(), new ArrayList<Map<String, String>>());
+        CodeSegment codegen = parsedProgram.codegen();
+        System.out.println(codegen.instructions);
+        System.out.println(codegen.parsed);
+        assert codegen.instructions.size() == codegen.parsed.size() : codegen.parsed.size();
+        for (int i = 0 ; i < codegen.instructions.size(); i++) {
+            String instruction = codegen.instructions.get(i);
+            Map<String, String> parsed = codegen.parsed.get(i);
+            if (instruction.equals("createlabel")) {
+                labels.put(parsed.get("label"), i);
+            }
+            if (instruction.equals("define")) {
+                System.out.println(String.format("Defining variable %s", instruction));
+                types.put(parsed.get("variable"), new VariableDeclaration(parsed.get("variable"), parsed, parsed.get("type")));
+            }
+            if (instruction.equals("load") || instruction.equals("store")) {
+                String variable = parsed.get("variable");
+                System.out.println(String.format("Resolving type for variable %s", variable));
+                parsed.put("type", types.get(variable).type);
+            }
+            if (instruction.equals("set")) {
+                String variable = parsed.get("variableName");
+                parsed.put("type", types.get(variable).type);
+            }
+        }
+        System.out.println(codegen.instructions);
+        System.out.println(labels);
+        List<Map<String, String>> mapstack = new ArrayList<>();
+        List<String> mapassign = new ArrayList<>();
+        int pc = programStart;
         while (running) {
-            int pc = programStart;
+
             //System.out.println(String.format("program start %d", pc));
             int jump = -1;
             while (running && pc < codegen.instructions.size()) {
@@ -82,30 +110,84 @@ public class LanguageInterpreter extends Thread {
                 Map<String, String> parsed = codegen.parsed.get(pc);
                 // System.out.println(String.format("%d %s %s %s", pc, instruction, parsed, variables));
                 switch (instruction) {
+                    case "pushstring":
+                        stringstack.add(parsed.get("token"));
+                        break;
+                    case "pushstruct":
+                        HashMap<String, String> e = new HashMap<>();
+                        mapstack.add(e);
+                        mapvariables.put(parsed.get("variable"), e);
+                        break;
+                    case "pushkey":
+                        mapassign.add(stringstack.remove(0));
+                        break;
+                    case "pushvalue":
+
+                        String key = mapassign.remove(0);
+                        String value = null;
+                        switch (parsed.get("type")) {
+                            case "int":
+                                value = String.valueOf(intstack.remove(0));
+                                break;
+                            case "string":
+                                value = stringstack.remove(0);
+                                break;
+                        }
+
+                        mapstack.get(0).put(key, value);
+                        break;
+                    case "store":
+//                        System.out.println(String.format("CALLING STORE %s %s", parsed.get("type"), parsed));
+                        switch (parsed.get("type")) {
+                            case "integer":
+                                intvariables.put(parsed.get("variable"), intstack.remove(0));
+                                break;
+                            case "struct":
+                                mapvariables.put(parsed.get("variable"), mapstack.remove(0));
+                                break;
+                        }
+                        break;
+                    case "load":
+                        types.get(parsed.get("token"));
+                        String token1 = parsed.get("token");
+                        String type = parsed.get("type");
+                        switch (type) {
+                            case "struct":
+                                Map<String, String> token = mapvariables.get(token1);
+                                mapstack.add(token);
+                        }
+                        break;
                     case "set":
                         String variableName = parsed.get("variableName");
                         String defaultValue = parsed.get("defaultValue");
+                        type = parsed.get("type");
 
-                        variables.put(variableName, Integer.parseInt(defaultValue));
+                        switch (type) {
+                            case "int":
+                                intvariables.put(variableName, Integer.parseInt(defaultValue));
+                            case "struct":
+                                mapvariables.put(variableName, mapstack.remove(0));
+
+                        }
                         break;
                     case "add":
 
                         variableName = parsed.get("variableName");
-                        Integer value = variables.get(parsed.get("operandVariable"));
+                        Integer intvalue = intvariables.get(parsed.get("operandVariable"));
 
-                        variables.put(parsed.get("operandVariable"), variables.get(variableName) + value);
+                        intvariables.put(parsed.get("operandVariable"), intvariables.get(variableName) + intvalue);
                         break;
                     case "addv":
 
                         variableName = parsed.get("variableName");
                         Integer value2 = Integer.parseInt(parsed.get("value"));
 
-                        variables.put(parsed.get("variableName"), variables.get(variableName) + value2);
+                        intvariables.put(parsed.get("variableName"), intvariables.get(variableName) + value2);
                         break;
                     case "send":
                         ArrayList<AlternativeMessage> newMessage = new ArrayList<>();
-                        newMessage.add(new AlternativeMessage(variables.get(parsed.get("sendVariableName"))));
-                        Integer destination = variables.get(parsed.get("destination"));
+                        newMessage.add(new AlternativeMessage(intvariables.get(parsed.get("sendVariableName"))));
+                        Integer destination = intvariables.get(parsed.get("destination"));
                         // System.out.println(String.format("destination is %d", destination));
                         this.outqueue.get(parsed.get("mailboxName")).get(destination).add(newMessage);
 
@@ -117,12 +199,12 @@ public class LanguageInterpreter extends Thread {
                         if (received2 == -1) {
                             jump = labels.get(parsed.get("failJump"));
                         } else {
-                            variables.put(parsed.get("variableName"), received2);
+                            intvariables.put(parsed.get("variableName"), received2);
                         }
 
                         break;
                     case "while":
-                        if (variables.get(parsed.get("variableName")) != 1) {
+                        if (intvariables.get(parsed.get("variableName")) != 1) {
                             jump = labels.get(parsed.get("jump"));
                         }
                         break;
@@ -131,8 +213,8 @@ public class LanguageInterpreter extends Thread {
                         break;
                     case "modulo":
                         String variableName2 = parsed.get("variableName");
-                        int newValue = variables.get(variableName2) % Integer.parseInt(parsed.get("amount"));
-                        variables.put(variableName2, newValue);
+                        int newValue = intvariables.get(variableName2) % Integer.parseInt(parsed.get("amount"));
+                        intvariables.put(variableName2, newValue);
                         break;
                     case "return":
                         jump = stack.remove(0);
@@ -141,7 +223,7 @@ public class LanguageInterpreter extends Thread {
 
                         ArrayList<AlternativeMessage> newMessage2 = new ArrayList<>();
                         newMessage2.add(new AlternativeMessage(labels.get(parsed.get("sendLabel"))));
-                        Integer destination2 = variables.get(parsed.get("destination"));
+                        Integer destination2 = intvariables.get(parsed.get("destination"));
                         // System.out.println(String.format("destination is %d", destination));
                         this.outqueue.get(parsed.get("mailboxName")).get(destination2).add(newMessage2);
 
@@ -156,7 +238,7 @@ public class LanguageInterpreter extends Thread {
                         createMailbox(parsed.get("mailboxName"));
                         break;
                     case "println":
-                        System.out.println(variables.get(parsed.get("variableName")));
+                        System.out.println(intvariables.get(parsed.get("variableName")));
                         break;
                     case "jump":
                         jump = labels.get(parsed.get("jumpDestination"));
@@ -170,7 +252,9 @@ public class LanguageInterpreter extends Thread {
                     }
                 }
 
-
+                if (pc >= programInstructionTypes.size()) {
+                    break;
+                }
             }
 
         }

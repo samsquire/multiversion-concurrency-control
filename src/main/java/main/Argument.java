@@ -1,8 +1,8 @@
 package main;
 
 public class Argument {
-    private final String name;
-    private final String type;
+    public final String name;
+    public final String type;
 
     public Argument(String name, String type) {
         this.name = name;

@@ -1,0 +1,7 @@
+while (running) {
+    source_account = randomInt(100);
+    destination_account = randomInt(100);
+    amount = randomInt(2500);
+    withdraw(source_account, amount);
+    deposit(destination_account, amount);
+}

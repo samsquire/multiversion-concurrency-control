@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 public class ExpressionAST extends AST {
-    private List<AST> children;
+    public List<AST> children;
 
     public ExpressionAST(AST ast) {
         this.children = new ArrayList<>();
@@ -13,6 +13,7 @@ public class ExpressionAST extends AST {
     }
     @Override
     public void add(AST astNode) {
+
         this.children.add(astNode);
     }
 
@@ -36,5 +37,15 @@ public class ExpressionAST extends AST {
         }
         sb.append("]");
         return sb.toString();
+    }
+
+    @Override
+    public boolean containsOperator() {
+        for (AST child : children) {
+            if (child != null && child.getClass() == OperatorAST.class) {
+                return true;
+            }
+        }
+        return false;
     }
 }

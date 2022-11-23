@@ -26,7 +26,7 @@ public class LanguageInterpreterRunner {
     private void run() {
         try {
             long start = System.currentTimeMillis();
-            URL res = getClass().getClassLoader().getResource("loop.pint");
+            URL res = getClass().getClassLoader().getResource("bank.pint");
             File file = Paths.get(res.toURI()).toFile();
             String absolutePath = file.getAbsolutePath();
             Scanner reader = new Scanner(file);
@@ -106,14 +106,15 @@ public class LanguageInterpreterRunner {
                 interpreter.running = false;
             }
             for (LanguageInterpreter interpreter : interpreters) {
-                interpreter.variables.put("running", 0);
+                interpreter.intvariables.put("running", 0);
             }
             for (LanguageInterpreter interpreter : interpreters) {
                 interpreter.join();
             }
+            System.out.println(interpreters.get(0).mapvariables.get("accounts"));
             long totalRequests = 0;
             for (LanguageInterpreter thread : interpreters) {
-                totalRequests += thread.variables.get("current");
+                totalRequests += thread.intvariables.get("current");
             }
             long end = System.currentTimeMillis();
             double seconds = (end - start) / 1000.0;

@@ -38,4 +38,8 @@ public abstract class AST {
     public boolean isValid() {
         return valid;
     }
+
+    public boolean containsOperator() {
+        return false;
+    }
 }

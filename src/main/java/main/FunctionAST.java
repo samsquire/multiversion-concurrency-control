@@ -42,6 +42,16 @@ public class FunctionAST extends AST {
         parsed.put("label", functionName);
         instructions.add("createlabel");
         genned.add(parsed);
+
+        for (Argument argument : arguments) {
+            instructions.add("define");
+            Map<String, String> argumentParsed = new HashMap<>();
+            argumentParsed.put("type", argument.type);
+            argumentParsed.put("variable", argument.name);
+            genned.add(argumentParsed);
+        }
+
+
         for (AST ast : children) {
             System.out.println(String.format("Generating codegen for ast %s", ast));
             CodeSegment codegen = ast.codegen();
