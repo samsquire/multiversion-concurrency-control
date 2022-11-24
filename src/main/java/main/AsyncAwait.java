@@ -17,7 +17,7 @@ public class AsyncAwait {
         state.put(1, 0);
         state.put(2, 0);
         HashMap<Integer, Integer> waitingFor = new HashMap<>();
-        HashMap<Integer, String> returnvalue = new HashMap<>();
+        HashMap<Integer, Integer> returnvalue = new HashMap<>();
         List<String> taskState = new ArrayList<>();
         taskState.add("task1.print(\"Starting task1\")"); // task1
         taskState.add("task2.print(\"Starting task2\")"); // task2
@@ -40,11 +40,12 @@ public class AsyncAwait {
         loopreturn.put(2, new HashMap<>());
 
         HashMap<Integer, String> returnstatement = new HashMap<>();
-        HashMap<String, String> variables = new HashMap<>();
+        HashMap<String, Integer> variables = new HashMap<>();
         int currenttask = 0;
         int currentLoop = 0;
         HashMap<Integer, Integer> loopYielding = new HashMap<>();
-
+        variables.put("x", 10);
+        variables.put("y", 0);
 
 
         while (true) { // vertical
@@ -81,11 +82,11 @@ public class AsyncAwait {
                             state.put(1, 0); // wake up task2
                             waitingFor.put(0, 1);
                             returnstatement.put(0, "task1.while True");
-                            loops.get(1).set(0, "task2.yield \"Hello\"");
+                            loops.get(1).set(0, "task2.yield y++");
                             state.put(0, 1);
                             break;
                         case "task1.value1":
-                            String value = returnvalue.get(1);
+                            Integer value = returnvalue.get(1);
 //                            System.out.println(String.format("Setting value1 to %s", value));
                             variables.put("value1", value);
                             state.put(0, 0);
@@ -99,19 +100,19 @@ public class AsyncAwait {
                             variables.put("value2", returnvalue.get(2));
                             returnstatement.put(0, "task1.while True");
                             state.put(0, 0);
-                            loops.get(0).set(0, "task1.print(value1, value2)");
+                            loops.get(0).set(0, "task1.print(\"Hello world\", value1, value2)");
                             break;
                         case "task1.value2 = await task3()":
                             state.put(2, 0); // wake up task3
                             waitingFor.put(0, 2);
                             returnstatement.put(0, "task1.while True");
                             state.put(0, 1);
-                            loopreturn.get(0).put(0, "task1.print(value1, value2)");
-                            loops.get(2).set(0, "task3.yield \"World\"");
+                            loopreturn.get(0).put(0, "task1.print(\"Hello world\", value1, value2)");
+                            loops.get(2).set(0, "task3.yield x++");
 
                             break;
-                        case "task1.print(value1, value2)":
-                            System.out.println(String.format("%s %s", variables.get("value1"), variables.get("value2")));
+                        case "task1.print(\"Hello world\", value1, value2)":
+                            System.out.println(String.format("Hello World %d %d", variables.get("value1"), variables.get("value2")));
                             returnstatement.put(0, "task1.while True");
                             loops.get(0).set(0, "task1.value1 = await task2()");
                             state.put(0, 0);
@@ -126,7 +127,7 @@ public class AsyncAwait {
 
                     if (loops.get(1).size() == 0) {
                         ArrayList<String> loopStart = new ArrayList<>();
-                        loops.get(1).set(0, "task2.yield \"Hello\"");
+                        loops.get(1).set(0, "task2.yield y++");
                     }
                     switch (loops.get(1).get(0)) { // horizontal
                         case "task2.preyield":
@@ -134,9 +135,10 @@ public class AsyncAwait {
 //                            System.out.println("Task 2 going to sleep preyield");
 
                             break;
-                        case "task2.yield \"Hello\"":
+                        case "task2.yield y++":
                             state.put(0, 0); // wake up task1
-                            returnvalue.put(1, "Hello");
+                            variables.put("y", variables.get("y") + 1);
+                            returnvalue.put(1, variables.get("y"));
                             returnstatement.put(1, "task2.while True");
                             yielded.put(1, 1);
                             loops.get(0).set(0, "task1.value1");
@@ -154,7 +156,7 @@ public class AsyncAwait {
 
                     if (loops.get(2).size() == 0) {
                         ArrayList<String> loopStart = new ArrayList<>();
-                        loops.get(2).set(0, "task3.yield \"World\"");
+                        loops.get(2).set(0, "task3.yield x++");
                     }
                     switch (loops.get(2).get(0)) { // horizontal
                         case "task3.preyield":
@@ -162,10 +164,12 @@ public class AsyncAwait {
 //                            System.out.println("Task 3 going to sleep preyield");
 
                             break;
-                        case "task3.yield \"World\"":
+                        case "task3.yield x++":
+                            System.out.println("Task3 yield x++");
                             state.put(0, 0); // wake up task1
-                            returnstatement.put(1, "task2.while True");
-                            returnvalue.put(2, "World");
+                            returnstatement.put(1, "task3.while True");
+                            variables.put("x", variables.get("x") + 1);
+                            returnvalue.put(2, variables.get("x"));
 
                             state.put(2, 1); // go to sleep
                             yielded.put(2, 1);
