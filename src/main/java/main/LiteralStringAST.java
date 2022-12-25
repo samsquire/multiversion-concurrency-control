@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 public class LiteralStringAST extends AST {
-    private String token;
+    public String token;
 
     public LiteralStringAST(String token) {
         super();
@@ -29,6 +29,16 @@ public class LiteralStringAST extends AST {
         parsed.put("token", token);
         genned.add(parsed);
 
+        instructions.add("pushtype");
+        Map<String, String> pushtype = new HashMap<>();
+        pushtype.put("type", "string");
+        genned.add(pushtype);
+
         return new CodeSegment(instructions, genned);
+    }
+
+    @Override
+    public String toString() {
+        return token;
     }
 }

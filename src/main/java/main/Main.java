@@ -62,40 +62,38 @@ class Main extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         ArrayList<Main> threads = new ArrayList<>();
-        int mailboxes = 3;
-        int messageRate = 10000;
+        int mailboxes = 10;
+        int messageRate = 1;
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 100; i++) {
-            Main thread = new Main(messageRate, i, threads, 101, false, mailboxes);
+        int threadCount = 11;
+        for (int i = 0; i < threadCount; i++) {
+            Main thread = new Main(messageRate, i, threads, threadCount + 1, false, mailboxes);
             threads.add(thread);
         }
 
-        Main synchronizer = new Main(messageRate, 100, new ArrayList<>(threads), 101, true, mailboxes);
+        Main synchronizer = new Main(messageRate, threadCount, new ArrayList<>(threads), threadCount + 1, true, mailboxes);
         threads.add(synchronizer);
         synchronizer.setThreads(new ArrayList<>(threads));
 
 
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < threadCount + 1; i++) {
             threads.get(i).setThreads(new ArrayList<>(threads));
         }
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < threadCount + 1; i++) {
             threads.get(i).start();
         }
-        synchronizer.start();
 
         int benchmarkTime = 5000;
         Thread.sleep(benchmarkTime);
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < threadCount + 1; i++) {
             threads.get(i).running = false;
         }
-        threads.get(100).running = false;
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < threadCount + 1; i++) {
             threads.get(i).join();
         }
-        threads.get(100).join();
         int totalRequests = 0;
-        for (int i = 0; i < 101; i++) {
+        for (int i = 0; i < threadCount + 1; i++) {
             totalRequests += threads.get(i).requestCount;
         }
         long end = System.currentTimeMillis();
@@ -347,7 +345,7 @@ class Main extends Thread {
 
                 main.inqueue.get(inbox).clear();
                 main.reading[inbox][main.threadNum] = false;
-                Thread.yield();
+//                Thread.yield();
 
             } // subcheck doubly safe
             else {

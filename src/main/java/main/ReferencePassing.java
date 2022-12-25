@@ -7,33 +7,38 @@ public class ReferencePassing extends Thread {
 
     private Map<Reference, Integer> totals;
     private final Map<Reference, Integer>  availables;
+    private int lastThread = 0;
 
     public static void main(String[] args) throws InterruptedException {
-        int threadCount = 100;
+        int threadCount = 11;
         int threadId = 0;
         Map<String, Reference> datas = new HashMap<>();
         DoublyLinkedList data = new DoublyLinkedList(0, System.currentTimeMillis());
         datas.put("main", data.reference);
         List<ReferencePassing> refPasses = new ArrayList<>();
-        ReferencePassing copier = new ReferencePassing("copier", threadId++);
-        refPasses.add(copier);
-        for (int i = 1 ; i < threadCount; i++) {
-            ReferencePassing thread = new ReferencePassing("worker", threadId++);
+        ReferencePassing copier = new ReferencePassing(null, "copier", threadId++);
+//        refPasses.add(copier);
+        for (int i = 0 ; i < threadCount; i++) {
+            ReferencePassing thread = new ReferencePassing(copier, "worker", threadId++);
             refPasses.add(thread);
 
         }
         copier.setThreads(new ArrayList<>(refPasses));
         copier.addAvailable(data.reference);
+        refPasses.get(0).setThreads(new ArrayList<>(refPasses));
         for (int i = 0 ; i < threadCount; i++) {
             refPasses.get(i).setThreads(new ArrayList<>(refPasses));
             refPasses.get(i).addRequest(data.reference);
         }
+        copier.start();
         for (int i = 0 ; i < threadCount ; i++) {
             refPasses.get(i).start();
         }
         long start = System.currentTimeMillis();
 
         Thread.sleep(5000);
+        copier.running = false;
+        copier.join();
         for (int i = 0 ; i < threadCount; i++) {
             refPasses.get(i).running = false;
         }
@@ -81,6 +86,7 @@ public class ReferencePassing extends Thread {
 
     private int count;
     private int threadCount;
+    private ReferencePassing copierThread;
     private String mode;
     private int threadId;
     private boolean running = true;
@@ -111,7 +117,8 @@ public class ReferencePassing extends Thread {
             return insert.reference;
         }
     }
-    public ReferencePassing(String mode, int threadId) {
+    public ReferencePassing(ReferencePassing copierThread, String mode, int threadId) {
+        this.copierThread = copierThread;
         this.mode = mode;
         this.threadId = threadId;
         this.requests = new ArrayList<>();
@@ -124,12 +131,12 @@ public class ReferencePassing extends Thread {
 
     public Reference addRequest(Reference reference) {
         HashMap<Reference, ReferenceProgress> rp = new HashMap<>();
-        ReferenceProgress value = new ReferenceProgress(reference.data.value, reference, reference);
+        ReferenceProgress value = new ReferenceProgress(reference.data.value, reference, reference, false);
         value.end = false;
         rp.put(reference, value);
         this.requests.add(rp);
         this.published.add(rp);
-        threads.get(0).availables.put(reference, 1);
+        copierThread.availables.put(reference, 1);
         totals.put(reference, 0);
         return reference;
     }
@@ -139,233 +146,266 @@ public class ReferencePassing extends Thread {
 
         Map<Reference, Integer> assigned = new HashMap<>();
         Map<Reference, Integer> handled = new HashMap<>();
-        while (this.running) {
             if (mode.equals("worker")) {
-                if (answers.size() > 0 && answers.get(0).size() > 0) {
-                    System.out.println("Running");
-                    List<Reference> activeReference = null;
+                while (this.running) {
+//                    System.out.println(requests.size());
+                    if (answers.size() > 0) {
+//                        System.out.println(requests.size());
+                        List<Reference> publishAvailable = new ArrayList<>();
+//                    System.out.println("Running");
+                        List<Reference> activeReference = null;
 
-                    writeLock.writeLock().lock();
-                    activeReference = answers.get(0);
-                    Map<Reference, ReferenceProgress> activeAnswers = requests.get(0);
-                    writeLock.writeLock().unlock();
-                    HashMap<Reference, ReferenceProgress> newRequests = new HashMap<>();
-                    for (Reference reference : activeReference) {
-//                            if (handled.containsKey(reference)) {
-//                                removals.add(reference);
-//                                continue;
-//                            }
-                            if (!activeAnswers.containsKey(reference)) {
-                                System.out.println(String.format("doesn't exist in answers %d", reference.data.value));
+                        writeLock.writeLock().lock();
+                        activeReference = answers.get(0);
+                        Map<Reference, ReferenceProgress> activeAnswers = requests.get(0);
+                        writeLock.writeLock().unlock();
+                        HashMap<Reference, ReferenceProgress> newRequests = new HashMap<>();
+                        for (Reference reference : activeReference) {
+                            if (activeAnswers.get(reference).end) {
+
+                                ReferenceProgress oldReferenceProgress = activeAnswers.get(reference);
+                                DoublyLinkedList tail = reference.data.tail;
+
+
+                                Integer value = totals.get(reference);
+                                if (value == null) {
+                                    value = 0;
+                                }
+                                totals.put(reference, value + 1);
+                                assert totals.get(reference) != null;
+
+                                // assert totals.get(reference).equals(value) : String.format("%d != %d", totals.get(reference), value);
+                                Reference newRef = oldReferenceProgress.past.insert(totals.get(reference));
+//                                totals.clear();
+                                // totals.put(previous, 0);
+                                // totals.put(oldReferenceProgress.past, 0);
+                                // addRequest(reference);
+//                                answers.remove(0);
+                                count++;
+//                            available.put(newRef, 0);
+//                                 System.out.println(String.format("%s is now available", reference.data.value));
+                                handled.put(reference, 1);
+                                handled.put(newRef, 1);
+
+
+                                // removals.add(reference);
+
+                                ReferenceProgress newRequest = activeAnswers.get(reference);
+                                newRequest.end = false;
+                                newRequest.reachedEnd = false;
+
+                                newRequests.put(newRef, newRequest);
+                                activeAnswers.put(newRef, newRequest);
+                                // totals.put(activeAnswers.get(reference).past, 0);
+                                publishAvailable.add(reference);
+                                publishAvailable.add(newRef);
+
+//                                activeAnswers.get(reference).end = false;
+                                removals.add(reference);
+//                                 activeAnswers.remove(reference);
+                                continue;
+                                // totals.put(previous, totals.get(reference));
+//                            System.out.println("Adding");
+
                             }
-                            System.out.println(String.format("Reading %d", reference.data.value));
-
-                            // totals.put(reference, 0);
-                            writeLock.writeLock().lock();
-
-                            writeLock.writeLock().unlock();
+//                            System.out.println("Reading");
+                            int last = 0;
+                            if (totals.containsKey(reference)) {
+                                last = activeAnswers.get(reference).total;
+                            }
+                            activeAnswers.get(reference).total = last + 1;
+                            totals.put(reference, last + 1);
                             Reference previous = reference;
-                            Reference nextItem = reference.next();
+                            Reference nextItem = null;
+                            ReferenceProgress past = activeAnswers.get(activeAnswers.get(reference).past);
+                            if (!past.reachedEnd) {
+                                nextItem = reference.next();
+                            }
+
+                            publishAvailable.add(previous);
                             removals.add(reference);
 
-                            // removals.add(reference);
 
-
-                            while (nextItem != null) {
+                            if (!past.reachedEnd) {
+                                past.reachedEnd = true;
+                                while (nextItem != null) {
 
 
 //                                System.out.println(String.format("%d Reading item", threadId));
 
-                                // addRequest(nextItem);
-                                int last = 0;
-                                if (totals.containsKey(previous)) {
-                                    last = totals.get(previous);
+                                    // addRequest(nextItem);
+
+                                    activeAnswers.get(reference).incoming = previous;
+                                    ReferenceProgress value = activeAnswers.get(previous);
+                                    activeAnswers.put(nextItem, value);
+                                    newRequests.put(nextItem,
+                                            activeAnswers.get(nextItem));
+                                    activeAnswers.put(nextItem, activeAnswers.get(nextItem));
+
+                                    removals.add(nextItem);
+                                    previous = nextItem;
+                                    nextItem = nextItem.next();
                                 }
-                                totals.put(nextItem, last + 1);
-                                activeAnswers.get(reference).incoming = previous;
-                                activeAnswers.put(nextItem, new ReferenceProgress(0, activeAnswers.get(reference).past, previous));
-                                newRequests.put(nextItem,
-                                        activeAnswers.get(reference));
+                                if (nextItem == null) {
+                                    // activeAnswers.get(activeAnswers.get(reference).past).reachedEnd = true;
+                                    ReferenceProgress value = past;
+                                            /*
+                                            new ReferenceProgress(activeAnswers.get(previous).total,
+                                            activeAnswers.get(reference).past,
+                                            previous,
+                                            true);
+                                             */
+                                    value.incoming = previous;
+                                    value.past = past.past;
+                                    value.end = true;
+                                    value.reachedEnd = false;
+                                    // totals.put(previous, totals.get(previous));
+                                    newRequests.put(previous, value);
+                                    activeAnswers.put(previous, value);
 
-
-//                                removals.add(nextItem);
-                                previous = nextItem;
-                                nextItem = nextItem.next();
-                                writeLock.writeLock().lock();
-                                // available.put(nextItem, 0);
-
-                                writeLock.writeLock().unlock();
+                                }
                             }
-                        if (nextItem == null) {
-//                            System.out.println("Adding");
-                            ReferenceProgress oldReferenceProgress = activeAnswers.get(reference);
+//                            System.out.println("Reached end");
 
 
-                            ReferenceProgress newReferenceProgress = oldReferenceProgress;
-//                            activeAnswers.get(reference).end = false;
-                            int nextVal = 1;
-                            if (totals.containsKey(previous)) {
-                                nextVal = totals.get(previous);
-                            }
-                            Reference newRef = oldReferenceProgress.past.insert(nextVal);
-                            // totals.put(previous, 0);
-                            // totals.put(oldReferenceProgress.past, 0);
-                            // addRequest(reference);
-//                            removals.add(reference);
-                            count++;
-                            // activeAnswers.remove(reference);
-                            writeLock.writeLock().lock();
-//                            available.put(newRef, 0);
-                            writeLock.writeLock().unlock();
-                            System.out.println(String.format("%s is now available", newReferenceProgress.past.data.value));
-                            handled.put(reference, 1);
-                            handled.put(newRef, 1);
-                            writeLock.writeLock().lock();
-                            totals.clear();
-
-                            available.put(oldReferenceProgress.past, 0);
-                            writeLock.writeLock().unlock();
-                        }
-                            // activeAnswers.remove(reference);
-
-//                            Reference next = reference.next();
-//                            if (next == null) {
-//
-//                                continue;
-//                            }
-//                            System.out.println("Read");
-//                            ReferenceProgress value = activeAnswers.get(reference);
-//                            value.total = value.total + next.data.value;
 //                            activeAnswers.remove(reference);
-//                            newRequests.put(next, value);
+                        }
 
-                    }
-                    if (newRequests.size() > 0) {
-                        published.add(newRequests);
-                        requests.add(newRequests);
-                    }
-                    for (Reference removal : removals) {
-                        activeReference.remove(removal);
-                    }
-                    removals.clear();
-                    if (answers.size() > 0 && answers.get(0).size() == 0) {
-                        answers.remove(answers.get(0));
-                    }
-                    if (activeAnswers.size() == 0) {
-                        System.out.println("empty answers");
-                        readLock.writeLock().lock();
-                        requests.remove(activeAnswers);
-                        published.remove(activeAnswers);
-                        readLock.writeLock().unlock();
-                    }
-                } else {
+                        if (newRequests.size() > 0) {
+//                            System.out.println("Adding requests");
+                            writeLock.writeLock().lock();
+                            published.add(newRequests);
+                            requests.add(newRequests);
+                            writeLock.writeLock().unlock();
+                        }
+
+                        writeLock.writeLock().lock();
+                        for (Reference removal : removals) {
+                            activeReference.remove(removal);
+                            available.put(removal, 1);
+                        }
+
+                        removals.clear();
+                        for (Reference reference : publishAvailable) {
+                            available.put(reference, 1);
+                        }
+                        writeLock.writeLock().unlock();
+                        publishAvailable.clear();
+                        if (answers.size() > 0 && answers.get(0).size() == 0) {
+//                            System.out.println("Removing old answers");
+                            answers.remove(answers.get(0));
+                        }
+                        if (activeAnswers.size() == 0) {
+//                            System.out.println("empty answers");
+                            readLock.writeLock().lock();
+                            requests.remove(0);
+                            readLock.writeLock().unlock();
+                        }
+//                        Thread.yield();
+                    } else {
 //                    System.out.println("Answers is empty");
+                    }
                 }
-
-            }
-            if (mode.equals("copier")) {
-
-                for (ReferencePassing other : threads) {
-                    other.writeLock.writeLock().lock();
-                    for (Map.Entry<Reference, Integer> entry : other.available.entrySet()) {
-                        availables.put(entry.getKey(), 1);
-                        assigned.remove(entry.getKey());
-                    }
-                    other.writeLock.writeLock().unlock();
-
                 }
-
-                for (ReferencePassing thread : threads) {
-                    if (thread.requests.size() == 0) {
-                        continue;
-                    }
-                    if (thread.published.size() == 0) {
-                        continue;
-                    }
-
-
-                    thread.writeLock.writeLock().lock();
-                    Map<Reference, ReferenceProgress> remove = thread.published.get(0);
-                    thread.writeLock.writeLock().unlock();
-                    List<Reference> answers = new ArrayList<>();
-                    boolean found = false;
-
-                    for (Map.Entry<Reference, ReferenceProgress> item : remove.entrySet()) {
-
-                        if (!assigned.containsKey(item.getKey()) && !availables.containsKey(item.getKey())) {
-                            answers.add(item.getKey());
-                            availables.put(item.getKey(), 1);
-                            removals.add(item.getKey());
-                            assigned.put(item.getKey(), 1);
-                            found = true;
-                            System.out.println(String.format("Newly created item Assigned %d to thread %d", item.getKey().data.value, thread.threadId));
-                        } else {
-
-                            for (ReferencePassing other : threads) {
-                                if (other != thread) {
-                                    other.writeLock.writeLock().lock();
-                                    for (Map.Entry<Reference, Integer> entry : other.available.entrySet()) {
-                                        availables.put(entry.getKey(), 1);
-                                    }
-                                    other.writeLock.writeLock().unlock();
-
-                                    if (other.available.containsKey(item.getKey())) {
-                                        // System.out.println(item.getKey());
-                                        answers.add(item.getKey());
-                                        other.available.remove(item.getKey());
-                                        availables.put(item.getKey(), 1);
-                                        removals.add(item.getKey());
-                                        assigned.put(item.getKey(), 1);
-                                        found = true;
-                                        System.out.println(String.format("Assigned %d to thread %d", item.getKey().data.value, thread.threadId));
-                                    }
+                if (mode.equals("copier")) {
+                    while (this.running) {
+//                        System.out.println("Copying");
+                        for (ReferencePassing other : threads) {
+                            other.writeLock.writeLock().lock();
+                            for (Map.Entry<Reference, Integer> entry : other.available.entrySet()) {
+                                if (!availables.containsKey(entry.getKey())) {
+                                    availables.put(entry.getKey(), 1);
+//                                    System.out.println(String.format("%s is available", entry.getKey()));
                                 }
-
+                                assigned.remove(entry.getKey());
                             }
-                        }
-                      if (!found) {
-                          // System.out.println(String.format("Could not find reference %s, looking in global reference", item.getKey().data.value));
-                          if (availables.containsKey(item.getKey()) && !assigned.containsKey(item.getKey())) {
-                              answers.add(item.getKey());
-                              System.out.println(String.format("Assigned %d to thread %d from globals", item.getKey().data.value, thread.threadId));
-                              found = true;
-                          }
-                      }
+                            other.available.clear();
+                            other.writeLock.writeLock().unlock();
 
-                    }
-                    if (found) {
-                        thread.published.remove(thread.requests.get(0));
-                    }
-                    for (Reference removal : removals) {
-                        if (thread.published.size() > 0) {
-                            thread.published.get(0).remove(removal);
                         }
-                    }
-                    removals.clear();
-                    if (answers.size() == 0) {
-                        continue;
-                    }
-                    System.out.println("Trying to writelock thread");
-                    thread.writeLock.writeLock().lock();
-                    System.out.println("Acquired writelock");
-                    System.out.println(answers);
-                    thread.answers.add(answers);
-                    thread.writeLock.writeLock().unlock();
 
+                        for (int lastThread = 0; lastThread < threads.size(); lastThread++) {
+                            ReferencePassing thread = threads.get(lastThread);
+                            thread.writeLock.writeLock().lock();
+                            if (thread.requests.size() == 0) {
+//                                System.out.println("No requests");
+                                thread.writeLock.writeLock().unlock();
+
+                                continue;
+                            }
+                            if (thread.published.size() == 0) {
+//                                System.out.println("No published requests");
+
+                                thread.writeLock.writeLock().unlock();
+
+                                continue;
+                            }
+
+
+
+                            Map<Reference, ReferenceProgress> remove = thread.published.get(0);
+                            if (remove.size() == 0) {
+//                                System.out.println("Empty requests");
+                            }
+                            thread.writeLock.writeLock().unlock();
+                            List<Reference> answers = new ArrayList<>();
+                            boolean found = false;
+
+                            for (Map.Entry<Reference, ReferenceProgress> item : remove.entrySet()) {
+//                                System.out.println(String.format("Looking for %s", item.getKey()));
+                                if (!availables.containsKey(item.getKey())) {
+                                    availables.put(item.getKey(), 1);
+//                                    System.out.println(String.format("Learned about %s", item.getKey()));
+                                }
+                                if (availables.containsKey(item.getKey()) && !assigned.containsKey(item.getKey())) {
+//                                    System.out.println(String.format("%s Not assigned, assigning to thread %d", item.getKey(), threadId));
+                                    answers.add(item.getKey());
+                                    removals.add(item.getKey());
+                                    assigned.put(item.getKey(), 1);
+                                    found = true;
+
+//                                    System.out.println(String.format("Newly created item Assigned %d to thread %d", item.getKey().data.value, thread.threadId));
+                                }
+                            }
+                            if (found) {
+//                                System.out.println("Found");
+//                                thread.published.remove(thread.requests.get(0));
+                            }
+                            for (Reference removal : removals) {
+                                if (thread.published.size() > 0) {
+
+                                }
+                            }
+                            removals.clear();
+                            if (answers.size() == 0) {
+                                continue;
+                            }
+//                    System.out.println("Trying to writelock thread");
+                            thread.writeLock.writeLock().lock();
+//                            System.out.println("Setting answers");
+//                    System.out.println(answers);
+                            thread.answers.add(answers);
+                            thread.writeLock.writeLock().unlock();
+
+                        }
+                        if (lastThread == threads.size()) {
+                            lastThread = 0;
+                        }
                 }
             }
-        }
     }
 
     public static class ReferenceProgress {
         public boolean end;
+        public boolean reachedEnd = false;
         int total;
-        private final Reference past;
+        private Reference past;
         private Reference incoming;
-        public ReferenceProgress(int total, Reference past, Reference incoming) {
+        public ReferenceProgress(int total, Reference past, Reference incoming, boolean end) {
             this.total = total;
             this.past = past;
             this.incoming = incoming;
+            this.end = end;
         }
     }
 }

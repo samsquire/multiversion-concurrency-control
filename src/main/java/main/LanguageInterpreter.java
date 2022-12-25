@@ -1,6 +1,7 @@
 package main;
 
 
+import java.sql.SQLOutput;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -8,7 +9,7 @@ import java.util.regex.Pattern;
 
 public class LanguageInterpreter extends Thread {
     private final int programStart;
-    public final HashMap<String, Map<String, String>> mapvariables;
+    public final HashMap<String, Map<String, Object>> mapvariables;
     private Pattern pattern;
     private final AST parsedProgram;
     private Matcher matcher;
@@ -25,7 +26,7 @@ public class LanguageInterpreter extends Thread {
     private boolean end;
     private char last_char;
     private Map<String, VariableDeclaration> types;
-    private Map<String, Integer> intstack;
+    private List<Integer> intstack;
     private List<String> stringstack;
 
     public LanguageInterpreter(AST parsedProgram, ArrayList<ArrayList<LanguageInterpreter.AlternativeMessage>> messages, int subthread, int messageRate, int threadNum, int i, ArrayList<Object> objects, int totalSize, boolean synchronizer, int mailboxes, int numSubthreads, List<String> programInstructionTypes, String programString, int programStart, HashMap<String, Integer> variables, Map<String, Integer> labels) {
@@ -95,9 +96,11 @@ public class LanguageInterpreter extends Thread {
                 parsed.put("type", types.get(variable).type);
             }
         }
+        System.out.println("generated instructions:");
         System.out.println(codegen.instructions);
         System.out.println(labels);
-        List<Map<String, String>> mapstack = new ArrayList<>();
+        List<Map<String, Object>> mapstack = new ArrayList<>();
+        List<String> typestack = new ArrayList<>();
         List<String> mapassign = new ArrayList<>();
         int pc = programStart;
         while (running) {
@@ -109,51 +112,71 @@ public class LanguageInterpreter extends Thread {
                 String instruction = codegen.instructions.get(pc);
                 Map<String, String> parsed = codegen.parsed.get(pc);
                 // System.out.println(String.format("%d %s %s %s", pc, instruction, parsed, variables));
+
                 switch (instruction) {
+                    case "poptype":
+                        typestack.remove(typestack.size() - 1);
+                        break;
+                    case "popstruct":
+                        mapstack.remove(0);
+                        break;
+                    case "pushtype":
+                        typestack.add(parsed.get("type"));
+                        break;
                     case "pushstring":
+
                         stringstack.add(parsed.get("token"));
                         break;
                     case "pushstruct":
-                        HashMap<String, String> e = new HashMap<>();
+                        HashMap<String, Object> e = new HashMap<>();
                         mapstack.add(e);
                         mapvariables.put(parsed.get("variable"), e);
                         break;
                     case "pushkey":
-                        mapassign.add(stringstack.remove(0));
+                        mapassign.add(stringstack.remove(stringstack.size() - 1));
                         break;
                     case "pushvalue":
 
-                        String key = mapassign.remove(0);
-                        String value = null;
-                        switch (parsed.get("type")) {
+                        String key = mapassign.remove(mapassign.size() - 1);
+                        String type = typestack.remove(typestack.size() - 1);
+                        System.out.println(String.format("Stack Type %s", type));
+                        Object value = null;
+                        switch (type) {
                             case "int":
-                                value = String.valueOf(intstack.remove(0));
+                                value = String.valueOf(intstack.remove(intstack.size() - 1));
                                 break;
                             case "string":
-                                value = stringstack.remove(0);
+                                System.out.println("Map set string");
+                                value = stringstack.remove(stringstack.size() - 1);
+                                break;
+                            case "struct":
+                                System.out.println("Pushing mapstack");
+                                value = mapstack.remove(mapstack.size() - 1);
                                 break;
                         }
 
-                        mapstack.get(0).put(key, value);
+                        mapstack.get(mapstack.size() - 1).put(key, value);
+                        System.out.println(String.format("Map set %s %s", key, value));
                         break;
                     case "store":
 //                        System.out.println(String.format("CALLING STORE %s %s", parsed.get("type"), parsed));
                         switch (parsed.get("type")) {
                             case "integer":
-                                intvariables.put(parsed.get("variable"), intstack.remove(0));
+                                intvariables.put(parsed.get("variable"), intstack.get(intstack.size() - 1));
                                 break;
                             case "struct":
-                                mapvariables.put(parsed.get("variable"), mapstack.remove(0));
+                                System.out.println(String.format("Map stack size is %d", mapstack.size() - 1));
+                                mapvariables.put(parsed.get("variable"), mapstack.get(mapstack.size() - 1));
                                 break;
                         }
                         break;
                     case "load":
                         types.get(parsed.get("token"));
                         String token1 = parsed.get("token");
-                        String type = parsed.get("type");
-                        switch (type) {
+                        String type2 = parsed.get("type");
+                        switch (type2) {
                             case "struct":
-                                Map<String, String> token = mapvariables.get(token1);
+                                Map<String, Object> token = mapvariables.get(token1);
                                 mapstack.add(token);
                         }
                         break;
@@ -202,6 +225,14 @@ public class LanguageInterpreter extends Thread {
                             intvariables.put(parsed.get("variableName"), received2);
                         }
 
+                        break;
+                    case "push":
+                        // intstack.add(Integer.valueOf(parsed.get("variable")));
+                        break;
+                    case "loadhashin":
+                        mapstack.get(intstack.remove(0));
+                    case "loadhashr":
+                        mapstack.add(mapstack.get(intstack.remove(0)));
                         break;
                     case "while":
                         if (intvariables.get(parsed.get("variableName")) != 1) {

@@ -26,7 +26,7 @@ public class InterpreterRunner {
     private void run() {
         try {
             long start = System.currentTimeMillis();
-            URL res = getClass().getClassLoader().getResource("crossthread-nosend.pint");
+            URL res = getClass().getClassLoader().getResource("crossthread.pint");
             File file = Paths.get(res.toURI()).toFile();
             String absolutePath = file.getAbsolutePath();
             Scanner reader = new Scanner(file);

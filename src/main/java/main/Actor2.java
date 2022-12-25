@@ -87,9 +87,9 @@ class Actor2 extends Thread {
     public static void main(String[] args) throws InterruptedException {
         ArrayList<Actor2> threads = new ArrayList<>();
         ArrayList<Actor2> allThreads = new ArrayList<>();
-        int mailboxes = 10;
-        int messageRate = 3000000;
-        int numSubthreads = 10;
+        int mailboxes = 100;
+        int messageRate = 10;
+        int numSubthreads = 1;
         int threadCount = 100;
         System.out.println("Creating test data...");
 
@@ -97,7 +97,7 @@ class Actor2 extends Thread {
         ArrayList<ArrayList<AlternativeMessage>> messages = new ArrayList<>();
 
 
-        for (int i = 0; i <= 101; i++) {
+        for (int i = 0; i <= threadCount + 1; i++) {
             ArrayList<AlternativeMessage> innerlist = new ArrayList<>();
             for (int k = 0; k < messageRate; k++) {
                 innerlist.add(new AlternativeMessage(1));
@@ -128,13 +128,13 @@ class Actor2 extends Thread {
             allSubthreads.add(subthreads);
         }
 
-        Actor2 synchronizer = new Actor2(messages, 0, messageRate, threadNum++, 101, new ArrayList<>(allThreads), totalSize, true, mailboxes, numSubthreads);
+        Actor2 synchronizer = new Actor2(messages, 0, messageRate, threadNum++, threadCount, new ArrayList<>(allThreads), totalSize, true, mailboxes, numSubthreads);
         allThreads.add(synchronizer);
         threads.add(synchronizer);
         synchronizer.setThreads(new ArrayList<>(allThreads));
 
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < threadCount + 1; i++) {
             threads.get(i).setThreads(new ArrayList<>(allThreads));
         }
         for (ArrayList<Actor2> subthreads : allSubthreads) {
@@ -144,7 +144,7 @@ class Actor2 extends Thread {
             }
         }
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < threadCount; i++) {
             threads.get(i).start();
         }
         for (ArrayList<Actor2> subthreads : allSubthreads) {
@@ -156,7 +156,7 @@ class Actor2 extends Thread {
 
         int benchmarkTime = 5000;
         Thread.sleep(benchmarkTime);
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < threadCount; i++) {
             threads.get(i).running = false;
         }
         for (ArrayList<Actor2> subthreads : allSubthreads) {
@@ -164,12 +164,12 @@ class Actor2 extends Thread {
                 subthread.running = false;
             }
         }
-        threads.get(100).running = false;
-        for (int i = 0; i < 100; i++) {
+        threads.get(threadCount).running = false;
+        for (int i = 0; i < threadCount; i++) {
             threads.get(i).join();
         }
 
-        threads.get(100).join();
+        threads.get(threadCount).join();
         for (ArrayList<Actor2> subthreads : allSubthreads) {
             for (Actor2 subthread : subthreads) {
                 subthread.join();

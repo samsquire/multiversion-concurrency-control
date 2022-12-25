@@ -31,7 +31,7 @@ public class LockBenchmark extends Thread {
         if (mode.equals("counter")) {
             while (running) {
                 writeLock.lock();
-                counter++;
+                counter += 10;
                 writeLock.unlock();
             }
         } else if (mode.equals("linkedlist")) {
@@ -52,12 +52,12 @@ public class LockBenchmark extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         ReadWriteLock rwlock = new ReentrantReadWriteLock();
-        int threadCount = 11;
+        int threadCount = 100;
         List<LockBenchmark> threads = new ArrayList<>();
-        LockBenchmark main = new LockBenchmark("linkedlist", null, 0, rwlock.writeLock());
+        LockBenchmark main = new LockBenchmark("counter", null, 0, rwlock.writeLock());
         threads.add(main);
         for (int i = 1 ; i < threadCount; i++) {
-            LockBenchmark lockBenchmark = new LockBenchmark("linkedlist", main, i, rwlock.writeLock());
+            LockBenchmark lockBenchmark = new LockBenchmark("counter", main, i, rwlock.writeLock());
             threads.add(lockBenchmark);
         }
         long start = System.currentTimeMillis();

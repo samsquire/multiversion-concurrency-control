@@ -21,6 +21,7 @@ public class ExpressionAST extends AST {
     public CodeSegment codegen() {
         List<String> instructions = new ArrayList<>();
         List<Map<String, String>> genned = new ArrayList<>();
+        System.out.println(children);
         for (AST ast : children) {
             CodeSegment codegen = ast.codegen();
             instructions.addAll(codegen.instructions);

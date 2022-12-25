@@ -37,13 +37,13 @@ public class VariableDeclarationAST extends AST {
         parsed.put("type", variableType);
         genned.add(parsed);
 
-        switch (variableType) {
-            case "struct":
-                instructions.add("pushstruct");
-                HashMap<String, String> pushstruct = new HashMap<>();
-                pushstruct.put("variable", variableName);
-                genned.add(pushstruct);
-        }
+//        switch (variableType) {
+//            case "struct":
+//                instructions.add("pushstruct");
+//                HashMap<String, String> pushstruct = new HashMap<>();
+//                pushstruct.put("variable", variableName);
+//                genned.add(pushstruct);
+//        }
 
         CodeSegment codegen = expression.codegen();
         instructions.addAll(codegen.instructions);
@@ -59,6 +59,15 @@ public class VariableDeclarationAST extends AST {
         store.put("variable", variableName);
         store.put("type", variableType);
         genned.add(store);
+
+//        switch (variableType) {
+//            case "struct":
+//                instructions.add("popstruct");
+//                HashMap popstruct = new HashMap<>();
+//                genned.add(popstruct);
+//                break;
+//        }
+
         return new CodeSegment(instructions, genned);
     }
 }

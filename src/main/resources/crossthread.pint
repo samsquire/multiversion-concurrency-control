@@ -20,5 +20,6 @@ sendcode methods current_thread :print
 endwhile :while1
 jump :end
 :print
+println current
 return
 :end

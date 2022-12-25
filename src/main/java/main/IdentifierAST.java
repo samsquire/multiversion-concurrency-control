@@ -29,6 +29,8 @@ public class IdentifierAST extends AST {
         System.out.println("Generating identifier AST");
         List<String> instructions = new ArrayList<>();
         List<Map<String, String>> genned = new ArrayList<>();
+        int depth = parent.depth;
+        System.out.println(String.format("Depth is %d", depth));
         if (type.equals("string")) {
             instructions.add("load");
         } else {
@@ -38,6 +40,7 @@ public class IdentifierAST extends AST {
         parsed.put("variable", token);
         parsed.put("token", token);
         genned.add(parsed);
+
         return new CodeSegment(instructions, genned);
     }
 }

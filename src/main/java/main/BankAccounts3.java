@@ -1,7 +1,5 @@
 package main;
 
-import org.apache.groovy.json.internal.CharBuf;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -10,7 +8,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class BankAccounts3 extends Thread {
     private final int id;
     private final List<Account> accounts;
-    public List<Account> acocunts;
     public int[] owner;
     private boolean running = true;
     private int requests;
@@ -24,7 +21,7 @@ public class BankAccounts3 extends Thread {
         private int balance;
         private final ReentrantReadWriteLock rwlock;
 
-        public Account(int id) {
+        public Account(long id) {
             this.balance = new Random().nextInt(2500);
             this.rwlock = new ReentrantReadWriteLock();
         }
@@ -36,17 +33,20 @@ public class BankAccounts3 extends Thread {
         }
     }
     public static void main(String[] args) throws InterruptedException {
-        int accountCount = 5;
-        int threadCount = 100;
+        long accountCount = 80000L;
+        int threadCount = 11;
         List<Account> accounts = new ArrayList<>();
-        int id = 0;
+        long id = 0;
         int money = 0;
-        for (int i = 0; i < accountCount; i++) {
+        for (long i = 0; i < accountCount; i++) {
             accounts.add(new Account(id++));
         }
+        System.out.println("Created accounts");
         for (BankAccounts3.Account account : accounts) {
             money += account.balance;
         }
+        System.out.println("Added up balance of accounts");
+
         System.out.println(String.format("= Total Money = %d", money));
         System.out.println("Starting test");
 

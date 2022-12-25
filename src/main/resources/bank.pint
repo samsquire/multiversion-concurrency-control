@@ -1,16 +1,24 @@
 threads 25
 <start>
 set struct accounts = {
-    'hi' = '7';
-};
+    '1' = {
+        'balance' = '700';,
+        'subitem' = {
+            'item' = 6
+        }
+    },
+    '2' = {
+        'balance' = '600';
+    }
+}
 for (i = 0 ; i < 100; i++) {
     accounts[i] = {
         balance = randomInt(2500);
     }
 }
 function deposit(int account, int amount) {
-    accounts[account].balance += amount;
+    accounts[account]['balance'] += amount;
 }
 function withdraw(int account, int amount) {
-    accounts[account].balance -= amount;
+    accounts[account]['balance'] -= amount;
 }

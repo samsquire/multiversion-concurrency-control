@@ -1,0 +1,9 @@
+threads 25
+<start>
+function function(int account) {
+    for (i = 0 ; i < 100; i++) {
+        for (i = 0 ; i < 100; i++) {
+            printLn(i);
+        }
+    }
+}

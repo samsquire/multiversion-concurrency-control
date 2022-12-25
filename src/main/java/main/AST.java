@@ -8,6 +8,8 @@ public abstract class AST {
     public boolean produced;
     public AST parent;
     public boolean valid;
+    public int depth = 0;
+    public String type;
 
     public CodeSegment codegen() {
         return new CodeSegment(new ArrayList<>(), new ArrayList<>());
@@ -41,5 +43,10 @@ public abstract class AST {
 
     public boolean containsOperator() {
         return false;
+    }
+
+    public void setType(String originalType) {
+        System.out.println(String.format("Setting type to %s", originalType));
+        this.type = originalType;
     }
 }

@@ -33,17 +33,28 @@ public class ArrayAccessAST extends AST {
         System.out.println("AST arrayaccess children");
         System.out.println(this.children);
         ExpressionAST ast = (ExpressionAST) this.children.get(0);
-        IdentifierAST identifier = (IdentifierAST) ast.children.get(0);
+        String token = "INVALID";
+        AST name = ast.children.get(0);
+        if (name.getClass() == LiteralStringAST.class) {
 
+            token = ((LiteralStringAST) name).token;
+        }
+        if (name.getClass() == IdentifierAST.class) {
+            token = ((IdentifierAST) name).token;
+        }
         instructions.add("push");
         instructions.add("loadhash");
         HashMap<String, String> addParsed = new HashMap<>();
-        addParsed.put("variable", identifier.token);
-        addParsed.put("type", identifier.type);
+        addParsed.put("variable", token);
+        addParsed.put("type", "string");
         genned.add(addParsed);
         HashMap<String, String> getStackParsed = new HashMap<>();
-        addParsed.put("variable", identifier.token);
+        addParsed.put("variable", token);
         genned.add(getStackParsed);
+        instructions.add("pushstring");
+        HashMap<String, String> pushstring = new HashMap<>();
+        pushstring.put("token", token);
+        genned.add(pushstring);
         return new CodeSegment(instructions, genned);
     }
 }
