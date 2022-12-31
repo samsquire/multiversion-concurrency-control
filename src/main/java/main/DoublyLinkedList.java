@@ -16,7 +16,7 @@ public class DoublyLinkedList {
     }
     public DoublyLinkedList insert(Integer value) {
         int previousModCount = modCount;
-        DoublyLinkedList newItem = new DoublyLinkedList(value, System.nanoTime());
+        DoublyLinkedList newItem = new DoublyLinkedList(value, 0);
 
         newItem.head = this;
         DoublyLinkedList previous = tail;
@@ -28,5 +28,10 @@ public class DoublyLinkedList {
         assert previousModCount == modCount;
         modCount++;
         return this;
+    }
+
+    public void read() {
+        int previousModCount = modCount;
+        assert previousModCount == modCount;
     }
 }
