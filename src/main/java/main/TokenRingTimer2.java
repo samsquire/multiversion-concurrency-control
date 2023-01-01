@@ -76,6 +76,7 @@ public class TokenRingTimer2 extends Thread {
 //        System.out.println(String.format("Writings %d", writings));
         int sumRW = readings + writings;
 //        System.out.println(String.format("Total reading+writings %d", sumRW));
+        System.out.println(String.format("Total writing %d", writings));
         System.out.println(String.format("Total reading+writings per second %f", sumRW / seconds));
         System.out.println(String.format("Requests per second %f",
                 items.size() / seconds));
