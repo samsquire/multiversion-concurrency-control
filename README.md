@@ -11,6 +11,7 @@ This repository is where I do experimental work on concurrency and parallelism p
 * A multiconsumer multiproducer ringbuffer which is threadsafe This is inspired by [Alexander Krizhanovsky](https://www.linuxjournal.com/content/lock-free-multi-producer-multi-consumer-queue-ring-buffer)
 * A high level programming language compiler that codegen targets the multithreaded interpreter
 * An async await switch statement
+* Async/await thread pool
 
 The headline implementation is a multithreaded multiversion concurrency control solution which handles safe and concurrent access to a database of integers without locking. We timestamp read events and check if there is any read event with a timestamp that is lower than us, in which case, we restart our transaction.
 
@@ -95,6 +96,18 @@ function withdraw(int account, int amount) {
 # Async/await
 
 It's possible to implement async/await using switch statements.
+
+# Async/await thread pool
+
+This is an eagerly executing async/await thread pool.
+
+There is a number of worker threads and each is executing a set asnc/await program
+
+Each thread executes in a cycle of reading phase and writing phase. This allows thread safety.
+
+The environment of the async/await task system is stored per thread. A `Run` is ran during the reading phase of the read. Any `Fork` events are appended to the next thread. The next thread shall process a `Fork` event and get a `Yield` event, which it
+
+During a read phase events placed by other threads are processed.
 
 # Multiversion concurrency control - How it works
 
