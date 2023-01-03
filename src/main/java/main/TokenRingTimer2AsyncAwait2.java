@@ -99,6 +99,10 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
             readings += threads.get(x).readingCount;
             writings += threads.get(x).writingCount;
         }
+        int incremented = 0;
+        for (int x = 0; x < threads.size(); x++) {
+            incremented += threads.get(x).variables.get("value2");
+        }
 
         double seconds = (end - start) / 1000.0;
 //        System.out.println(String.format("Total Requests %d", items.size()));
@@ -110,6 +114,7 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         System.out.println(String.format("Total reading+writings per second %f", sumRW / seconds));
         System.out.println(String.format("Requests per second %f",
                 items.size() / seconds));
+        System.out.println(String.format("Requests per second %d", incremented));
     }
 
     public class TaskAction {
@@ -226,11 +231,7 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         state.put(1, 1);
 
         currentTask = 0;
-        List<TaskAction> pendingOtherChanges = new ArrayList<>();
-        List<TaskAction> pendingMeChanges = new ArrayList<>();
-        List<TaskAction> previousThreadChanges = new ArrayList<>();
         while (running) {
-            TokenRingTimer2AsyncAwait2 previousThread = threads.get((previous) % threads.size());
             TokenRingTimer2AsyncAwait2 nextThread = threads.get((next) % threads.size());
 
 
@@ -241,9 +242,7 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
 //                System.out.println(String.format("%d currentTask %d ==========================", id, currentTask));
                 for (TaskAction await : changesForThisThread) {
                     if (await.handled) { continue; }
-                    if (id == 1) {
-//                        System.out.println(String.format("processing submission to thread %s %s", id, await));
-                    }
+
                     if (await.getClass() == Fork.class) {
                         await.handled = true;
                         Fork fork = (Fork) await;
@@ -258,7 +257,7 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                                 fork.thread.variables,
                                 previousCallbacks,
                                 callbacks);
-                        pendingOtherChanges.addAll(readingpre);
+                        handle(readingpre);
 
                     }
 
@@ -266,15 +265,12 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                         await.handled = true;
                         StateChange stateChange = (StateChange) await;
                         stateChange.thread.state.put(stateChange.task, stateChange.newState);
-                    } else {
-                        pendingOtherChanges.add(await);
                     }
                 }
+
                 changesForThisThread.clear();
-                changesForThisThread.addAll(pendingMeChanges);
-                changesForForkedThread.addAll(pendingOtherChanges);
-                pendingOtherChanges.clear();
-                pendingMeChanges.clear();
+//                System.out.println(changesForForkedThread.size());
+
                 List<TaskAction> main = runTask("main",
                         currentTask,
                         state,
@@ -286,9 +282,9 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                         callbacks
                 );
 //                System.out.println(String.format("%d %s", id, main));
-                changesForForkedThread.addAll(main);
 
-                for (TaskAction await : changesForForkedThread) {
+
+                for (TaskAction await : main) {
                     if (await.handled) { continue; }
 //                    System.out.println(String.format("Handling write, %s", await));
 
@@ -302,36 +298,33 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                         yielded.fork.thread.loops.get(yielded.awaitingTask)
                                 .set(yielded.loop, yielded.instruction);
 
-                                List<TaskAction> readingpreyield = runTask("readingpreyield", yielded.awaitingTask,
-                                        yielded.fork.thread.state,
-                                        yielded.fork.thread.taskState,
-                                        yielded.fork.thread.loops,
-                                        yielded.currentState,
-                                        yielded.fork.thread.variables,
-                                        previousCallbacks,
-                                        callbacks);
-//                                pendingOtherChanges.addAll(readingpreyield);
-                            }
+                            List<TaskAction> readingpreyield = runTask("readingpreyield", yielded.awaitingTask,
+                                    yielded.fork.thread.state,
+                                    yielded.fork.thread.taskState,
+                                    yielded.fork.thread.loops,
+                                    yielded.currentState,
+                                    yielded.fork.thread.variables,
+                                    previousCallbacks,
+                                    callbacks);
+                            handle(readingpreyield);
+                        }
 
 
 
-                    if (await.getClass() == Fork.class) {
+                    else if (await.getClass() == Fork.class) {
                         Fork fork = (Fork) await;
 //                        System.out.println("Setting fork details");
                         fork.thread.loops.get(fork.taskNo).set(fork.loop, fork.next);
 
                         fork.thread.applyState(fork.stateChanges);
-                    }
-                }
-                for (TaskAction await : changesForThisThread) {
-
-                    if (await.getClass() == StateChange.class) {
-                        StateChange stateChange = (StateChange) await;
-                        stateChange.thread.state.put(stateChange.task, stateChange.newState);
-                    } else {
                         changesForForkedThread.add(await);
                     }
+                    else if (await.getClass() == StateChange.class) {
+                        StateChange stateChange = (StateChange) await;
+                        stateChange.thread.state.put(stateChange.task, stateChange.newState);
+                    }
                 }
+
 //                System.out.println(String.format("pending changes %s", pendingChanges));
                 for (int i = -1; i < state.size(); i++) {
 
@@ -415,9 +408,8 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
 //                        System.out.println(String.format("Changes for last thread %s",
 //                                changesForForkedThread));
                     }
-                    previousThread.changesForThisThread.addAll(previousThreadChanges);
-                    previousThreadChanges.clear();
                     nextThread.changesForThisThread.addAll(changesForForkedThread);
+                    changesForForkedThread.clear();
                     // System.out.println(String.format("Passing the baton to %d", next));
 //                    submissions.clear();
 
@@ -430,16 +422,25 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                     threads.get(0).writeReset = true;
 //                    System.out.println("0 turn to write");
                 } else {
-                    previousThread.changesForThisThread.addAll(previousThreadChanges);
-                    previousThreadChanges.clear();
-
                     nextThread.changesForThisThread.addAll(changesForForkedThread);
+                    changesForForkedThread.clear();
+
 //                    changesForForkedThread.clear();
                     // System.out.println(String.format("Passing the baton to %d", next));
 //                    submissions.clear();
 
                     nextThread.clear = true;
                 }
+            }
+        }
+    }
+
+    private void handle(List<TaskAction> readingpreyield) {
+        for (TaskAction action : readingpreyield) {
+            if (action.getClass() == StateChange.class) {
+                action.handled = true;
+                StateChange stateChange = (StateChange) action;
+                stateChange.thread.state.put(stateChange.task, stateChange.newState);
             }
         }
     }
