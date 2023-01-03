@@ -27,6 +27,7 @@ public class TokenRingTimer2AsyncAwait extends Thread {
     private Map<Integer, LoopEnvironment> callers;
     private Map<String, Integer> variables;
     private Map<Integer, Integer> returnValues;
+    private boolean readingCancelled;
 
     public TokenRingTimer2AsyncAwait(int id,
                                      DoublyLinkedList data) {
@@ -134,9 +135,14 @@ public class TokenRingTimer2AsyncAwait extends Thread {
         List<TaskState> forkings = new ArrayList<>();
         currentTask = 0;
         while (running) {
-                readingCount++;
-                String currentState = taskState.get(currentTask);
-                System.out.println(String.format("currentTask% d ==========================", currentTask));
+            readingCount++;
+            String currentState = taskState.get(currentTask);
+//            System.out.println(String.format("currentTask% d ==========================", currentTask));
+            if (reading) {
+                // System.out.println("Reading");
+                lastValue = data.tail.value + id;
+                finishedReading = true;
+
                 switch (currentState) {
                     case "task1.print(\"task1. Starting main task\");":
                         System.out.println("task1. Starting main task");
@@ -146,21 +152,23 @@ public class TokenRingTimer2AsyncAwait extends Thread {
                     case "task1.while True:":
                         switch (loops.get(0).get(0)) {
                             case "task1.handle0 = task2.fork();":
-                                System.out.println("task1.handle0 = task2.fork(), forking");
+//                            System.out.println("task1.handle0 = task2.fork(), forking");
                                 state.put(1, 0); // resume task2
-                                System.out.println(state);
+//                            System.out.println(state);
                                 loops.get(0).set(0, "task1.value = handle.await()");
+                                callers.put(1, new LoopEnvironment(0, 0, "handle.awaited"));
+
                                 loops.get(1).set(0, "task2.yield value2++");
-                                System.out.println(String.format("next is %s", loops.get(0).get(0)));
+//                            System.out.println(String.format("next is %s", loops.get(0).get(0)));
                                 handles.add(0);
                                 break;
                             case "task1.value = handle.await()":
-                                System.out.println("Awaiting");
+//                            System.out.println("Awaiting");
                                 state.put(0, 1); // pause
-                                callers.put(1, new LoopEnvironment(0, 0, "handle.awaited"));
+                                System.out.println("put callers");
                                 break;
                             case "handle.awaited":
-                                System.out.println("Await finished");
+//                            System.out.println("Await finished");
                                 variables.put("value", returnValues.get(1));
                                 loops.get(0).set(0, "task1.print(value)");
                                 break;
@@ -181,9 +189,9 @@ public class TokenRingTimer2AsyncAwait extends Thread {
                                 state.put(1, 1);
                                 break;
                             case "task2.yield value2++":
-                                System.out.println("yielding value");
-                                System.out.println("handles");
-                                System.out.println(handles);
+//                            System.out.println("yielding value");
+//                            System.out.println("handles");
+//                            System.out.println(handles);
                                 Integer value2 = 0;
                                 if (variables.containsKey("value2")) {
                                     value2 = variables.get("value2");
@@ -201,68 +209,87 @@ public class TokenRingTimer2AsyncAwait extends Thread {
                         }
                         break;
                 }
+            } else {
+                readingCancelled = true;
+            }
 
-                for (int i = -1 ; i < state.size(); i++) {
+            for (int i = -1; i < state.size(); i++) {
 
-                    int task = (currentTask + i + 1) % state.size();
-                    // System.out.println(String.format("%d is %d", task, state.get(task)));
-                    if (state.get(task) == 0) {
-                        currentTask = task;
+                int task = (currentTask + i + 1) % state.size();
+                // System.out.println(String.format("%d is %d", task, state.get(task)));
+                if (state.get(task) == 0) {
+                    currentTask = task;
+                }
+            }
+
+
+            if (id == 0 && writeReset) {
+                if (finishedReading) {
+                    boolean allFinished = true;
+                    for (TokenRingTimer2AsyncAwait thread : threads) {
+                        if (!thread.finishedReading) {
+                            allFinished = false;
+                            // System.out.println(String.format("%d not finished reading",
+                            // thread.id));
+                            break;
+                        }
+                    }
+                    if (allFinished) {
+                        // System.out.println(String.format("Finished reading %s", finishedReading));
+
+                        // System.out.println("Stopping threads");
+                        for (TokenRingTimer2AsyncAwait thread : threads) {
+                            thread.reading = false;
+                        }
+                        boolean allCancelled = true;
+                        for (TokenRingTimer2AsyncAwait thread : threads) {
+                            if (thread != this) {
+                                if (!thread.readingCancelled) {
+                                    allCancelled = false;
+                                    // System.out.println(String.format("%d is not cancelled", thread.id));
+                                }
+                            }
+                        }
+                        // System.out.println(String.format("State %s %s %s", allFinished, allCancelled, writeReset));
+                        if (allFinished && allCancelled && writeReset) {
+                            clear = true;
+                            writeReset = false;
+                            // System.out.println("New cycle");
+                        }
                     }
                 }
-
-
-//                // System.out.println("Reading");
-//                lastValue = data.tail.value + id;
-//                finishedReading = true;
-//
-//                boolean allFinished = true;
-//                for (TokenRingTimer2AsyncAwait thread : threads) {
-//                    if (!thread.finishedReading) {
-//                        allFinished = false;
-//                        break;
-//                    }
-//                }
-//                if (allFinished) {
-//
-//                    if (writeReset) {
-//                        clear = true;
-//                        writeReset = false;
-//                        // System.out.println("New cycle");
-//                    }
-//                }
-//            }
-//
-//            if (clear) {
-//                writingCount++;
-//                // System.out.println("Writing");
-//                data.insert(lastValue);
-//                // System.out.println(String.format("%d writing", id));
-//                clear = false;
-//
-//
-//                if (next == last) {
-//                    for (TokenRingTimer2AsyncAwait thread : threads) {
-//                        thread.finishedReading = false;
-//                        thread.reading = true;
-//                        thread.readingStopped = false;
-//
-//                    }
-//                    threads.get(0).writeReset = true;
-//                } else {
-//                    TokenRingTimer2AsyncAwait nextThread = threads.get((next) % threads.size());
-//                    nextThread.clear = true;
-//                    // System.out.println("Passing the baton");
-//
-//                }
-//            }
             }
+
+            if (clear) {
+                writingCount++;
+                // System.out.println("Writing");
+                data.insert(lastValue);
+                // System.out.println(String.format("%d writing", id));
+                clear = false;
+
+
+                if (next == last) {
+                    for (TokenRingTimer2AsyncAwait thread : threads) {
+                        thread.finishedReading = false;
+                        thread.reading = true;
+                        thread.readingStopped = false;
+
+                    }
+                    threads.get(0).writeReset = true;
+                } else {
+                    TokenRingTimer2AsyncAwait nextThread = threads.get((next) % threads.size());
+                    nextThread.clear = true;
+                    // System.out.println("Passing the baton");
+
+                }
+            }
+        }
     }
 
-    private class LoopEnvironment {
+    class LoopEnvironment {
         private final int task;
-        private final int loop;
-        private final String instruction;
+        public final int loop;
+        public final String instruction;
 
         public LoopEnvironment(int task, int loop, String instruction) {
             this.task = task;
