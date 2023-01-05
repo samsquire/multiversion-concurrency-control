@@ -5,13 +5,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TokenRingTimer2AsyncAwait2 extends Thread {
+public class MultiAwait extends Thread {
     private final List<TaskAction> changesForThisThread;
     private final List<TaskAction> changesForForkedThread;
     private int currentTask;
     private int id;
     private DoublyLinkedList data;
-    private ArrayList<TokenRingTimer2AsyncAwait2> threads;
+    private ArrayList<MultiAwait> threads;
     private boolean running = true;
     private volatile boolean clear = false;
     private volatile boolean wakeup = false;
@@ -36,11 +36,13 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
     private Map<Integer, Integer> state;
     private List<String> taskState;
     private List<String> mainTask;
-    private TaskAction[] callbacks;
+    private List<List<TaskAction>> callbacks;
     List<String> task2;
+    List<String> task3;
+    private int n = 0;
 
-    public TokenRingTimer2AsyncAwait2(int id,
-                                      DoublyLinkedList data) {
+    public MultiAwait(int id,
+                      DoublyLinkedList data) {
         this.id = id;
         this.data = data;
         loops = new HashMap<>();
@@ -49,30 +51,36 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         taskState = new ArrayList<>();
         mainTask = new ArrayList<>();
         task2 = new ArrayList<>();
+        task3 = new ArrayList<>();
         submissions = new ArrayList<>();
-        callbacks = new TaskAction[2];
+        callbacks = new ArrayList<List<TaskAction>>();
         changesForThisThread = new ArrayList<>();
         changesForForkedThread = new ArrayList<>();
         variables = new HashMap<>();
     }
 
     public static void main(String[] args) throws InterruptedException {
-        int threadCount = 11;
+        int threadCount = 12;
         DoublyLinkedList data = new DoublyLinkedList(0, System.currentTimeMillis());
-        List<TokenRingTimer2AsyncAwait2> threads = new ArrayList<>();
+        List<MultiAwait> threads = new ArrayList<>();
         data.insert(1);
 
 
         for (int i = 0; i < threadCount; i++) {
-            TokenRingTimer2AsyncAwait2 thread = new TokenRingTimer2AsyncAwait2(i, data);
+            MultiAwait thread = new MultiAwait(i, data);
             thread.reading = true;
             thread.finishedReading = false;
             thread.readingCancelled = false;
+            thread.clear = false;
             threads.add(thread);
         }
 
-        threads.get(0).writeReset = true;
+
         for (int i = 0; i < threadCount; i++) {
+            if (i % 2 == 1) {
+                System.out.println(i);
+                threads.get(i).writeReset = true;
+            }
             threads.get(i).setThreads(new ArrayList<>(threads));
         }
         for (int i = 0; i < threadCount; i++) {
@@ -102,6 +110,9 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         }
         int incremented = 0;
         for (int x = 0; x < threads.size(); x++) {
+            if (threads.get(x).variables.get("value") == null) {
+                System.out.println(x);
+            }
             incremented += threads.get(x).variables.get("value");
         }
 
@@ -120,10 +131,11 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
 
     public class TaskAction {
 
-        public TokenRingTimer2AsyncAwait2 thread;
+        public MultiAwait thread;
         public boolean handled;
+        public int from;
 
-        public TaskAction(TokenRingTimer2AsyncAwait2 thread) {
+        public TaskAction(MultiAwait thread) {
             this.thread = thread;
         }
     }
@@ -135,11 +147,10 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         private Map<Integer, List<String>> loops;
         private Map<Integer, Integer> state;
         private Map<String, Integer> variables;
-        private TaskAction[] callbacks;
+        private List<List<TaskAction>> callbacks;
         private List<StateChange> stateChanges;
-        private int handles;
         private String task;
-        private TokenRingTimer2AsyncAwait2 thread;
+        private MultiAwait thread;
         private int awaiterTask;
         private int taskNo;
         private int loop;
@@ -148,9 +159,8 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         private String currentState;
 
         public Fork(List<StateChange> stateChanges,
-                    int handles,
                     String task,
-                    TokenRingTimer2AsyncAwait2 thread,
+                    MultiAwait thread,
                     int awaiterTask,
                     int taskNo,
                     int loop,
@@ -159,10 +169,9 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                     List<String> taskState,
                     Map<Integer, List<String>> loops,
                     Map<Integer, Integer> state,
-                    Map<String, Integer> variables, TaskAction[] callbacks) {
+                    Map<String, Integer> variables, List<List<TaskAction>> callbacks) {
             super(thread);
             this.stateChanges = stateChanges;
-            this.handles = handles;
             this.task = task;
             this.thread = thread;
             this.awaiterTask = awaiterTask;
@@ -178,10 +187,6 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
             this.callbacks = callbacks;
         }
 
-        public Fork(TokenRingTimer2AsyncAwait2 thread) {
-            super(thread);
-        }
-
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("FORK ");
@@ -191,17 +196,29 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         }
     }
 
-    private void setThreads(ArrayList<TokenRingTimer2AsyncAwait2> tokenRingTimers) {
+    private void setThreads(ArrayList<MultiAwait> tokenRingTimers) {
         this.threads = tokenRingTimers;
     }
 
     public void run() {
         int lastValue = 0;
-        int next = id + 1;
-        int previous = id - 1 < 0 ? threads.size() - 1 : id - 1;
+        int next = 0;
+        int previous = 0;
+
+        if (id % 2 == 0) {
+            next = id + 1;
+            previous = id + 1;
+        }
+
+        if (id % 2 == 1) {
+            next = id - 1;
+            previous = id - 1;
+
+        }
+        int writeThread = Math.min(id, next);
         int last = threads.size();
-        TaskAction[] previousCallbacks = threads.get(previous % threads.size()).callbacks;
-        TaskAction[] nextCallbacks = threads.get(next % threads.size()).callbacks;
+        List<List<TaskAction>> previousCallbacks = threads.get(previous % threads.size()).callbacks;
+        List<List<TaskAction>> nextCallbacks = threads.get(next % threads.size()).callbacks;
         callers = new HashMap<>();
 
         returnValues = new HashMap<>();
@@ -211,7 +228,7 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         // task,loop
 
         ArrayList<String> innerloops = new ArrayList<>();
-        innerloops.add("task1.handle0 = task2.fork();");
+        innerloops.add("task1.handle1 = task2.fork();");
         loops.put(0, innerloops);
 
 
@@ -221,6 +238,11 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         innerloops.add("task2.yieldwait");
         loops.put(1, innerloops);
 
+        innerloops = new ArrayList<>();
+        innerloops.add("task3.yieldwait");
+        loops.put(2, innerloops);
+        task3.add("task3.print(\"task3. Starting task3 task\");");
+
         task2.add("task2.while True:");
         task2.add("task2.value++");
         task2.add("task2.yield value");
@@ -228,14 +250,23 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         // initial task states
         taskState.add(mainTask.get(0));
         taskState.add(task2.get(0));
+        taskState.add(task3.get(0));
+        for (int i = 0 ; i < 3 ; i++) {
+            callbacks.add(new ArrayList<>());
+        }
         state.put(0, 0);
         state.put(1, 1);
+        state.put(2, 1);
 
         currentTask = 0;
         while (running) {
-            TokenRingTimer2AsyncAwait2 nextThread = threads.get((next) % threads.size());
-            TokenRingTimer2AsyncAwait2 previousThread = threads.get((previous) % threads.size());
+            MultiAwait nextThread = threads.get((next) % threads.size());
+            MultiAwait previousThread = threads.get((previous) % threads.size());
 
+
+//            System.out.println(String.format("Write thread for thread %d is %d", id, writeThread));
+//            System.out.println(String.format("next thread for %d is %d", id, next));
+//            System.out.println(String.format("previous thread for %d is %d", id, previous));
 
             String currentState = taskState.get(currentTask);
             if (reading) {
@@ -342,51 +373,19 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                 finishedReading = true;
 
 
-            } else {
-                readingCancelled = true;
-            }
-            if (id == 0 && writeReset) {
-                if (finishedReading) {
-                    boolean allFinished = true;
-                    for (TokenRingTimer2AsyncAwait2 thread : threads) {
-                        if (!thread.finishedReading) {
-                            allFinished = false;
-                            // System.out.println(String.format("%d not finished reading",
-                            // thread.id));
-                            break;
-                        }
-                    }
-                    if (allFinished) {
-                        // System.out.println(String.format("Finished reading %s", finishedReading));
 
-                        // System.out.println("Stopping threads");
-                        for (TokenRingTimer2AsyncAwait2 thread : threads) {
-                            thread.reading = false;
-                        }
-                        boolean allCancelled = true;
-                        for (TokenRingTimer2AsyncAwait2 thread : threads) {
-                            if (thread != this) {
-                                if (!thread.readingCancelled) {
-                                    allCancelled = false;
-                                    // System.out.println(String.format("%d is not cancelled", thread.id));
-                                }
-                            }
-                        }
-                        // System.out.println(String.format("State %s %s %s", allFinished, allCancelled, writeReset));
-                        if (allCancelled && writeReset) {
-                            clear = true;
-                            writeReset = false;
-                            // System.out.println("New cycle");
-                        }
-                    }
-                }
             }
+            n++;
 
-            if (clear) {
+
+            if (n % 500 == 0 && writeReset) {
+                n = 0;
+//                System.out.println(String.format("%d writing", id));
                 writingCount++;
 //                System.out.println(String.format("%d Writing", id));
                 data.insert(lastValue);
                 clear = false;
+                writeReset = false;
 
 
 //                for (TaskAction await : changesForThisThread) {
@@ -399,35 +398,23 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
 //                    }
 //                }
 
-                if (next == last) {
-                    if (id == 1) {
-//                        System.out.println(String.format("Changes for last thread %s",
-//                                changesForForkedThread));
-                    }
+
+
                     nextThread.changesForThisThread.addAll(changesForForkedThread);
                     changesForForkedThread.clear();
+                    threads.get(next).readingCancelled = false;
+                    threads.get(next).finishedReading = false;
+                    threads.get(next).reading = true;
+                    readingCancelled = false;
+                    reading = true;
+                    finishedReading = false;
+                    nextThread.writeReset = true;
                     // System.out.println(String.format("Passing the baton to %d", next));
 //                    submissions.clear();
 
-//                    nextThread.clear = true;
-                    for (TokenRingTimer2AsyncAwait2 thread : threads) {
-                        thread.readingCancelled = false;
-                        thread.finishedReading = false;
-                        thread.reading = true;
-                    }
-                    threads.get(0).writeReset = true;
+
+
 //                    System.out.println("0 turn to write");
-                } else {
-                    nextThread.changesForThisThread.addAll(changesForForkedThread);
-                    changesForForkedThread.clear();
-
-
-//                    changesForForkedThread.clear();
-                    // System.out.println(String.format("Passing the baton to %d", next));
-//                    submissions.clear();
-
-                    nextThread.clear = true;
-                }
             }
         }
     }
@@ -460,12 +447,20 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                                      Map<Integer, List<String>> loops,
                                      String currentState,
                                      Map<String, Integer> variables,
-                                     TaskAction[] callbacks,
-                                     TaskAction[] myCallbacks) {
+                                     List<List<TaskAction>> callbacks,
+                                     List<List<TaskAction>> myCallbacks) {
         List<TaskAction> submissions = new ArrayList<>();
 
 
         switch (currentState) {
+            case "task3.print(\"task3. Starting task3 task\");":
+                System.out.println(
+                        String.format("task3. Starting task3 task %s",
+                                caller));
+                taskState.set(currentTask, "task1.while True:");
+                taskState.set(2, "task3.while True:");
+                state.put(2, 0);
+                break;
             case "task1.print(\"task1. Starting main task\");":
                 System.out.println(
                         String.format("task1. Starting main task %s",
@@ -474,16 +469,16 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                 state.put(0, 0);
                 break;
             case "task1.while True:":
-//                System.out.println(String.format("Running task %d %s %s task1 loop %s %s", id, currentState, caller, loops.get(0).get(0), caller));
+                System.out.println(String.format("Running task %d %s %s task1 loop %s %s", id, currentState, caller, loops.get(0).get(0), caller));
 
 //                    System.out.println(String.format("", ));
                 switch (loops.get(0).get(0)) {
-                    case "task1.handle0 = task2.fork();":
-//                        System.out.println("task1.handle0 = task2.fork(), forking");
+                    case "task1.handle1 = task2.fork();":
+                        System.out.println("task1.handle1 = task2.fork(), forking");
 //                        state.put(1, 0); // resume task2
 //                        System.out.println(state);
-                        loops.get(0).set(0, "task1.value = handle.await()");
-                        state.put(0, 1);
+                        loops.get(0).set(0, "task1.handle2 = task3.fork();");
+                        state.put(0, 0);
                         List<StateChange> stateChanges = new ArrayList<>();
                         stateChanges.add(new StateChange(this, 1, 0));
 
@@ -491,17 +486,16 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                         // awaitingTask.add(0);
                         // loops.get(1).set(0, "task2.yield value2++");
                         Fork fork2 = new Fork(stateChanges,
-                                awaitingTask,
                                 "task2.while True:",
                                 this,
                                 0,
                                 1,
                                 0,
-                                "task2.yield value2++",
+                                "task3.yield value2++",
 
                                 new LoopEnvironment(0,
                                         0,
-                                        "handle.awaited"),
+                                        "handle0.awaited"),
                                 currentState,
                                 taskState,
                                 loops,
@@ -509,26 +503,97 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                                 variables,
                                 callbacks);
 
-                        callbacks[0] = fork2;
+                        callbacks.get(0).add(fork2);
                         submissions.add(fork2);
+//                        System.out.println(String.format("Setting callbacks for thread %d %s", id, caller));
+                        break;
+                    case "task1.handle2 = task3.fork();":
+//                        System.out.println("task1.handle0 = task2.fork(), forking");
+//                        state.put(1, 0); // resume task2
+//                        System.out.println(state);
+                        taskState.set(currentTask, "task3.print(\"task3. Starting task3 task\");");
+                        loops.get(0).set(0, "task1.value = handle2.await()");
+                        //
+                        state.put(0, 0);
+                        List<StateChange> stateChanges2 = new ArrayList<>();
+                        stateChanges2.add(new StateChange(this, 2, 0));
+
+//                        System.out.println(String.format("next is %s", loops.get(0).get(0)));
+                        // awaitingTask.add(0);
+                        // loops.get(1).set(0, "task2.yield value2++");
+                        Fork fork3 = new Fork(stateChanges2,
+                                "task3.while True:",
+                                this,
+                                0,
+                                2,
+                                0,
+                                "task3.yield value2++",
+
+                                new LoopEnvironment(0,
+                                        0,
+                                        "handle2.awaited"),
+                                currentState,
+                                taskState,
+                                loops,
+                                state,
+                                variables,
+                                callbacks);
+
+                        callbacks.get(0).add(fork3);
+                        submissions.add(fork3);
 //                        System.out.println(String.format("Setting callbacks for thread %d %s", id, caller));
                         break;
                     case "task1.value = handle.await()":
 //                        System.out.println(String.format("Awaiting %s", caller));
                         state.put(0, 1); // pause
                         break;
+                    case "task1.value = handle2.await()":
+//                        System.out.println(String.format("Awaiting %s", caller));
+                        state.put(0, 1); // pause
+                        loops.get(0).set(0, "task1.value = handle.await()");
+                        break;
                     case "handle.awaited":
 //                        System.out.println(String.format("Await finished %s", caller));
-                        TaskAction taskAction = myCallbacks[1];
-                        Yield yielded = (Yield) taskAction;
-                        yielded.fork.variables.put("value", yielded.returnValue);
-                        yielded.fork.thread.loops.get(0).set(0, "task1.print(value)");
-//                        submissions.add(new StateChange(yielded.fork.thread, 0, 0));
+                        List<TaskAction> taskActions = myCallbacks.get(1);
+                        List<TaskAction> removals = new ArrayList<>();
+                        for (TaskAction action : taskActions) {
+                            Yield yielded = (Yield) action;
+                            if (yielded.taskNo == 1) {
+                                removals.add(action);
+                                yielded.fork.variables.put("value", yielded.returnValue);
+                                yielded.fork.thread.loops.get(0).set(0, "task1.print(value)");
+                                submissions.add(new StateChange(yielded.fork.thread, 0, 0));
+                            }
+                        }
+                        for (TaskAction removal : removals) {
+                            taskActions.remove(removal);
+                        }
+
+
+                        break;
+                    case "handle2.awaited":
+//                        System.out.println(String.format("Await finished %s", caller));
+                        taskActions = myCallbacks.get(2);
+                        removals = new ArrayList<>();
+                        for (TaskAction action : taskActions) {
+                            Yield yielded = (Yield) action;
+                            if (yielded.taskNo == 2) {
+                                removals.add(action);
+                                yielded.fork.variables.put("value", yielded.returnValue);
+                                yielded.fork.thread.loops.get(0).set(0, "task1.print(value)");
+                                submissions.add(new StateChange(yielded.fork.thread, 0, 0));
+                            }
+                        }
+                        for (TaskAction removal : removals) {
+                            taskActions.remove(removal);
+                        }
+
+
                         break;
                     case "task1.print(value)":
                         System.out.println(String.format("%d Value: %s %s",
                                 id, variables.get("value"), caller));
-                        loops.get(0).set(0, "task1.handle0 = task2.fork();");
+                        loops.get(0).set(0, "task1.handle1 = task2.fork();");
 
                 }
                 break;
@@ -541,7 +606,7 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
             case "task2.while True:":
 //                if (id == 1) {
 //
-////                    System.out.println(String.format("task2 loop %s %s", loops.get(1).get(0), caller));
+                    System.out.println(String.format("task2 loop %s %s", loops.get(1).get(0), caller));
 //                }
                 switch (loops.get(1).get(0)) {
                     case "task2.yieldwait":
@@ -551,39 +616,97 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
                     case "task2.yield value2++":
 //                        System.out.println(String.format("%d Yield %s ", id, caller));
 //                        System.out.println(String.format("%d %s %s", id, caller, callbacks));
-                        Fork fork2 = (Fork) callbacks[0];
-//                        System.out.println(myCallbacks);
-//                        fork2.thread.state.put(1, 1);
-                        Integer value2 = 0;
-                        if (fork2.thread.variables.containsKey("value2")) {
-                            value2 = fork2.thread.variables.get("value2");
-                        }
-                        value2++;
-                        fork2.thread.variables.put("value2", value2);
+
+                        for (TaskAction action : callbacks.get(0)) {
+                            if (action.from == 1) {
+                                Fork fork2 = (Fork) callbacks.get(0);
+                                //                        System.out.println(myCallbacks);
+                                fork2.thread.state.put(1, 1);
+                                Integer value2 = 0;
+                                if (fork2.thread.variables.containsKey("value2")) {
+                                    value2 = fork2.thread.variables.get("value2");
+                                }
+                                value2++;
+                                fork2.thread.variables.put("value2", value2);
 //                        returnValues.put(1, value2);
-                        // resume caller
+                                // resume caller
 //                        Integer remove = awaitingTask;
-                        // loops.get(remove).set(callers.get(1).loop, callers.get(1).instruction);
+                                // loops.get(remove).set(callers.get(1).loop, callers.get(1).instruction);
 //                        state.put(remove, 0);
 //                        loops.get(1).set(0, "task2.yieldwait");
 //                        state.put(1, 1);
-                        List<StateChange> stateChanges = new ArrayList<>();
-                        stateChanges.add(new StateChange(this, 1, 1));
-                        stateChanges.add(new StateChange(this, fork2.awaiterTask, 0));
+                                List<StateChange> stateChanges = new ArrayList<>();
+                                stateChanges.add(new StateChange(this, 1, 1));
+                                stateChanges.add(new StateChange(this, fork2.awaiterTask, 0));
 //                        System.out.println(String.format("IN YIELD %s %s", caller,
 //                                fork2.task));
-                        Yield yield = new Yield(fork2.thread, fork2,
-                                fork2.currentState,
-                                value2,
-                                stateChanges,
-                                fork2.awaiterTask,
-                                fork2.loopEnvironment.loop,
-                                fork2.loopEnvironment.instruction);
-                        submissions.add(yield);
-                        myCallbacks[1] = yield;
+                                Yield yield = new Yield(fork2.thread, fork2,
+                                        fork2.currentState,
+                                        value2,
+                                        stateChanges,
+                                        fork2.awaiterTask,
+                                        fork2.loopEnvironment.loop,
+                                        fork2.loopEnvironment.instruction,
+                                        1);
+                                submissions.add(yield);
+                                myCallbacks.get(1).add(yield);
+                            }
+                        }
+
 
                 }
                 break;
+            case "task3.while True:":
+                System.out.println(String.format("Running task %d %s %s task3 loop %s %s", id, currentState, caller, loops.get(0).get(0), caller));
+
+                switch (loops.get(2).get(0)) {
+                    case "task3.yieldwait":
+                        submissions.add(new StateChange(this, 2, 1));
+                        state.put(1, 1);
+                        break;
+                    case "task3.yield value3++":
+    //                        System.out.println(String.format("%d Yield %s ", id, caller));
+    //                        System.out.println(String.format("%d %s %s", id, caller, callbacks));
+
+                        for (TaskAction action : callbacks.get(0)) {
+                            Fork fork2 = (Fork) action;
+                            if (fork2.taskNo == 2) {
+                                //                        System.out.println(myCallbacks);
+                                fork2.thread.state.put(2, 1);
+                                Integer value2 = 0;
+                                if (fork2.thread.variables.containsKey("value2")) {
+                                    value2 = fork2.thread.variables.get("value2");
+                                }
+                                value2++;
+                                fork2.thread.variables.put("value2", value2);
+    //                        returnValues.put(1, value2);
+                                // resume caller
+    //                        Integer remove = awaitingTask;
+                                // loops.get(remove).set(callers.get(1).loop, callers.get(1).instruction);
+    //                        state.put(remove, 0);
+    //                        loops.get(1).set(0, "task2.yieldwait");
+    //                        state.put(1, 1);
+                                List<StateChange> stateChanges = new ArrayList<>();
+                                stateChanges.add(new StateChange(this, 2, 1));
+                                stateChanges.add(new StateChange(this, fork2.awaiterTask, 0));
+    //                        System.out.println(String.format("IN YIELD %s %s", caller,
+    //                                fork2.task));
+                                Yield yield = new Yield(fork2.thread, fork2,
+                                        fork2.currentState,
+                                        value2,
+                                        stateChanges,
+                                        fork2.awaiterTask,
+                                        fork2.loopEnvironment.loop,
+                                        fork2.loopEnvironment.instruction,
+                                        2);
+                                submissions.add(yield);
+                                myCallbacks.get(2).add(yield);
+                            }
+                        }
+
+
+                }
+            break;
         }
         return submissions;
     }
@@ -612,7 +735,7 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         private final int task;
         private final int newState;
 
-        public StateChange(TokenRingTimer2AsyncAwait2 thread, int task, int newState) {
+        public StateChange(MultiAwait thread, int task, int newState) {
             super(thread);
             this.task = task;
             this.newState = newState;
@@ -632,18 +755,20 @@ public class TokenRingTimer2AsyncAwait2 extends Thread {
         private final int awaitingTask;
         private final int loop;
         private final String instruction;
+        public int taskNo;
         private Fork fork;
         private String currentState;
         public Integer returnValue;
 
-        public Yield(TokenRingTimer2AsyncAwait2 thread,
+        public Yield(MultiAwait thread,
                      Fork fork,
                      String currentState,
                      Integer returnValue,
                      List<StateChange> stateChanges,
                      int awaitingTask,
                      int loop,
-                     String instruction) {
+                     String instruction,
+                     int taskNo) {
             super(thread);
             this.thread = thread;
             this.fork = fork;

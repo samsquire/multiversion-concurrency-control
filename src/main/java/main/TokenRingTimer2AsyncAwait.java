@@ -165,7 +165,6 @@ public class TokenRingTimer2AsyncAwait extends Thread {
                             case "task1.value = handle.await()":
 //                            System.out.println("Awaiting");
                                 state.put(0, 1); // pause
-                                System.out.println("put callers");
                                 break;
                             case "handle.awaited":
 //                            System.out.println("Await finished");
