@@ -369,7 +369,7 @@ public class TokenRingTimer2AsyncAwait3 extends Thread {
             n++;
 
 
-            if (n % 500 == 0 && writeReset) {
+            if (n % 1000 == 0 && writeReset) {
                 n = 0;
 //                System.out.println(String.format("%d writing", id));
                 writingCount++;
