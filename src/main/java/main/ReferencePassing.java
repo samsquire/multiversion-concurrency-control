@@ -10,7 +10,7 @@ public class ReferencePassing extends Thread {
     private int lastThread = 0;
 
     public static void main(String[] args) throws InterruptedException {
-        int threadCount = 11;
+        int threadCount = 2;
         int threadId = 0;
         Map<String, Reference> datas = new HashMap<>();
         DoublyLinkedList data = new DoublyLinkedList(0, System.currentTimeMillis());

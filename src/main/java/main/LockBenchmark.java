@@ -52,7 +52,7 @@ public class LockBenchmark extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         ReadWriteLock rwlock = new ReentrantReadWriteLock();
-        int threadCount = 100;
+        int threadCount = 11;
         List<LockBenchmark> threads = new ArrayList<>();
         LockBenchmark main = new LockBenchmark("counter", null, 0, rwlock.writeLock());
         threads.add(main);

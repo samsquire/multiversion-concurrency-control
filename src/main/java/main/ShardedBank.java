@@ -162,7 +162,7 @@ public class ShardedBank extends Thread {
     public static void main(String[] args) throws InterruptedException {
         Random rng = new Random();
         int threadCount = 11;
-        int accountsSize = 1000;
+        int accountsSize = 800000;
 
         long size = Long.MAX_VALUE / threadCount;
 

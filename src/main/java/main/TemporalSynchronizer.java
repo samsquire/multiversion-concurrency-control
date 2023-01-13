@@ -8,7 +8,7 @@ public class TemporalSynchronizer extends Thread {
     private final int threadCount;
     public DoublyLinkedList data = new DoublyLinkedList(0, System.currentTimeMillis());
     private List<TemporalSynchronizer> threads;
-    private boolean running = true;
+    private volatile boolean running = true;
     private long count = 0;
     private long syncs;
 
@@ -75,7 +75,7 @@ public class TemporalSynchronizer extends Thread {
             long start = subchunk * id;
             long endChunk  = subchunk * (id + 1);
 //            System.out.println(String.format("%d %d-%d (%d)", id, start, endChunk, chunk));
-            if (chunk > start && chunk < endChunk) {
+            if (chunk >= start && chunk < endChunk) {
 //                System.out.println("In timeslot");
                 syncs++;
                 for (TemporalSynchronizer syncer : threads) {

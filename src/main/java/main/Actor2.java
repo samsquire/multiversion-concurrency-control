@@ -87,10 +87,10 @@ class Actor2 extends Thread {
     public static void main(String[] args) throws InterruptedException {
         ArrayList<Actor2> threads = new ArrayList<>();
         ArrayList<Actor2> allThreads = new ArrayList<>();
-        int mailboxes = 100;
+        int mailboxes = 10;
         int messageRate = 10;
-        int numSubthreads = 1;
-        int threadCount = 100;
+        int numSubthreads = 10;
+        int threadCount = 20;
         System.out.println("Creating test data...");
 
 
