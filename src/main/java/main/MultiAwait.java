@@ -313,7 +313,7 @@ public class MultiAwait extends Thread {
                         callbacks
                 );
 //                System.out.println(String.format("%d %s", id, main));
-//                System.out.println(state);
+//                System.out.println(String.format("%d: %s", id, state));
 
                 for (TaskAction await : main) {
 
@@ -467,7 +467,7 @@ public class MultiAwait extends Thread {
                 System.out.println(
                         String.format("task1. Starting main task %s",
                                 caller));
-                taskState.set(currentTask, "task1.while True:");
+                 taskState.set(currentTask, "task1.while True:");
                 state.put(0, 0);
                 break;
             case "task1.while True:":
@@ -576,9 +576,13 @@ public class MultiAwait extends Thread {
                                 submissions.add(new StateChange(yielded.fork.thread, 0, 0));
                             }
                         }
+
+
+
                         for (TaskAction removal : removals) {
                             taskActions.remove(removal);
                         }
+                        
                         taskActions = myCallbacks.get(2);
                         removals = new ArrayList<>();
                         for (TaskAction action : taskActions) {
@@ -588,16 +592,17 @@ public class MultiAwait extends Thread {
                                 yielded.fork.variables.put("value4", yielded.returnValue);
                                 yielded.fork.thread.loops.get(0).set(0, "awaited.join");
                                 submissions.add(new StateChange(yielded.fork.thread, 0, 0));
+
                             }
                         }
                         for (TaskAction removal : removals) {
                             taskActions.remove(removal);
                         }
-
-
                         if (myCallbacks.get(2).size() == 0 && myCallbacks.get(1).size() == 0) {
                             loops.get(0).set(0, "task1.print(value)");
                         }
+
+
 
                         break;
                     case "task1.print(value)":
@@ -704,7 +709,7 @@ public class MultiAwait extends Thread {
     //                        loops.get(1).set(0, "task2.yieldwait");
     //                        state.put(1, 1);
                                 List<StateChange> stateChanges = new ArrayList<>();
-//                                stateChanges.add(new StateChange(this, 2, 1));
+                                stateChanges.add(new StateChange(this, 2, 1));
                                 stateChanges.add(new StateChange(this, fork3.awaiterTask, 0));
     //                        System.out.println(String.format("IN YIELD %s %s", caller,
     //                                fork3.task));

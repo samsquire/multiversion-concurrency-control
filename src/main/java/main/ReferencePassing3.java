@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class ReferencePassing3 extends Thread {
     private int NEITHER = -1;
@@ -17,9 +16,12 @@ public class ReferencePassing3 extends Thread {
     public List<List<DoublyLinkedList>> incoming;
     private List<ReferencePassing3> owner = new ArrayList<>();
     private int threadNum;
+    private int mailboxSize;
     private int threadsSize;
 
-    public ReferencePassing3() {
+    public ReferencePassing3(int threadNum, int mailboxSize) {
+        this.threadNum = threadNum;
+        this.mailboxSize = mailboxSize;
     }
 
     public ReferencePassing3(int threadNum) {
@@ -28,9 +30,10 @@ public class ReferencePassing3 extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         int threadCount = 11;
+        int mailboxSize = 10;
         List<ReferencePassing3> threads = new ArrayList<>();
         for (int i = 0 ; i < threadCount; i++) {
-            threads.add(new ReferencePassing3(i));
+            threads.add(new ReferencePassing3(i, mailboxSize));
         }
         for (int i = 0 ; i < threadCount; i++) {
             threads.get(i).setThreads(new ArrayList<>(threads));
