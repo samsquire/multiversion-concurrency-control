@@ -4,12 +4,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class MultiAwait extends Thread {
-    private final List<TaskAction> changesForThisThread;
+    private final List<List<TaskAction>> changesForThisThread;
     private final List<TaskAction> changesForForkedThread;
     private int currentTask;
     private int id;
+    private ReentrantReadWriteLock lock;
     private DoublyLinkedList data;
     private ArrayList<MultiAwait> threads;
     private boolean running = true;
@@ -22,7 +24,7 @@ public class MultiAwait extends Thread {
     private int readingCount;
     private boolean finishedWrite;
     private boolean allFinished = true;
-    private boolean writeReset;
+    private volatile boolean writeReset;
     private boolean readingStopped;
 
     private List<TaskState> availableTasks = new ArrayList<>();
@@ -40,6 +42,7 @@ public class MultiAwait extends Thread {
     List<String> task2;
     List<String> task3;
     private int n = 0;
+    private String currentState;
 
     public MultiAwait(int id,
                       DoublyLinkedList data) {
@@ -57,6 +60,7 @@ public class MultiAwait extends Thread {
         changesForThisThread = new ArrayList<>();
         changesForForkedThread = new ArrayList<>();
         variables = new HashMap<>();
+        lock = new ReentrantReadWriteLock();
     }
 
     public static void main(String[] args) throws InterruptedException {
@@ -111,9 +115,23 @@ public class MultiAwait extends Thread {
         int incremented = 0;
         for (int x = 0; x < threads.size(); x++) {
             if (threads.get(x).variables.get("value") == null) {
-                System.out.println(x);
             }
-            incremented += threads.get(x).variables.get("value");
+            if (threads.get(x).variables.containsKey("value")) {
+                incremented += threads.get(x).variables.get("value");
+                System.out.println(String.format("Thread %d: %d", x,
+                        threads.get(x).variables.get("value")));
+            } else {
+                System.out.println(String.format("Thread %d doesn't have a value", x));
+                System.out.println(threads.get(x).state);
+                System.out.println(threads.get(x).loops);
+                System.out.println(threads.get(x).currentState);
+            }
+            if (threads.get(x).variables.get("value") < 1000) {
+                System.out.println(String.format("Thread %d is low", x));
+                System.out.println(threads.get(x).state);
+                System.out.println(threads.get(x).loops);
+                System.out.println(threads.get(x).currentState);
+            }
         }
 
         double seconds = (end - start) / 1000.0;
@@ -207,13 +225,17 @@ public class MultiAwait extends Thread {
         if (id == threads.size() - 1) {
             previous = 0;
             next = 0;
+        } else if (id == 0) {
+          previous = threads.size() - 1;
+          next = threads.size() - 1;
         } else {
             next = id + 1;
             previous = id + 1;
         }
-
-        int writeThread = Math.min(id, next);
-        int last = threads.size();
+        int strictNextThreadId = id + 1;
+        if (id == threads.size() - 1) {
+            strictNextThreadId = 0;
+        }
         List<List<TaskAction>> previousCallbacks = threads.get(previous % threads.size()).callbacks;
         List<List<TaskAction>> nextCallbacks = threads.get(next % threads.size()).callbacks;
         callers = new HashMap<>();
@@ -258,58 +280,64 @@ public class MultiAwait extends Thread {
         currentTask = 0;
         while (running) {
             MultiAwait nextThread = threads.get((next) % threads.size());
+            MultiAwait strictNextThread = threads.get(strictNextThreadId);
             MultiAwait previousThread = threads.get((previous) % threads.size());
 
 
 //            System.out.println(String.format("Write thread for thread %d is %d", id, writeThread));
 //            System.out.println(String.format("next thread for %d is %d", id, next));
 //            System.out.println(String.format("previous thread for %d is %d", id, previous));
+//            System.out.println(String.format("previous thread for %d is %d", id, strictNextThreadId));
 
-            String currentState = taskState.get(currentTask);
+            currentState = taskState.get(currentTask);
             if (reading) {
                 readingCount++;
 //                System.out.println(String.format("%d currentTask %d ==========================", id, currentTask));
-                for (TaskAction await : changesForThisThread) {
-                    if (await.handled) {
-                        continue;
+                if (changesForThisThread.size() > 0) {
+                    for (TaskAction await : changesForThisThread.get(0)) {
+                        if (await.handled) {
+                            continue;
+                        }
+
+                        if (await.getClass() == Fork.class) {
+                            await.handled = true;
+                            Fork fork = (Fork) await;
+                            fork.thread.applyState(fork.stateChanges);
+                            fork.thread.loops.get(fork.taskNo).set(fork.loop, fork.next);
+
+//                         System.out.println(String.format("%d RUNNING FORK %s", id, fork.task));
+                            // state.put(fork.taskNo, 0);
+                            List<TaskAction> readingpre = runTask(fork.thread, previousThread, "readingpre", fork.awaiterTask,
+                                    fork.thread.state,
+                                    fork.thread.taskState,
+                                    fork.thread.loops,
+                                    fork.task,
+                                    fork.thread.variables,
+                                    fork.thread.callbacks,
+                                    fork.thread.callbacks
+
+                            );
+                            handle(readingpre);
+
+                        } else if (await.getClass() == StateChange.class) {
+                            await.handled = true;
+                            StateChange stateChange = (StateChange) await;
+                            stateChange.thread.state.put(stateChange.task, stateChange.newState);
+                        }
                     }
 
-                    if (await.getClass() == Fork.class) {
-                        await.handled = true;
-                        Fork fork = (Fork) await;
-                        fork.thread.loops.get(fork.taskNo).set(fork.loop, fork.next);
-                        fork.thread.applyState(fork.stateChanges);
-                        // System.out.println(String.format("%d RUNNING FORK %s", id, fork.task));
-                        // state.put(fork.taskNo, 0);
-                        List<TaskAction> readingpre = runTask("readingpre", fork.awaiterTask,
-                                fork.thread.state,
-                                fork.thread.taskState,
-                                fork.thread.loops,
-                                fork.task,
-                                fork.thread.variables,
-                                previousCallbacks,
-                                callbacks);
-                        handle(readingpre);
-
-                    } else if (await.getClass() == StateChange.class) {
-                        await.handled = true;
-                        StateChange stateChange = (StateChange) await;
-                        stateChange.thread.state.put(stateChange.task, stateChange.newState);
-                    }
+                    changesForThisThread.remove(0);
                 }
-
-                changesForThisThread.clear();
-
 //                System.out.println(changesForForkedThread.size());
 
-                List<TaskAction> main = runTask("main",
+                List<TaskAction> main = runTask(this, previousThread, "main",
                         currentTask,
                         state,
                         taskState,
                         loops,
                         currentState,
                         variables,
-                        previousCallbacks,
+                        callbacks,
                         callbacks
                 );
 //                System.out.println(String.format("%d %s", id, main));
@@ -322,17 +350,20 @@ public class MultiAwait extends Thread {
                     if (await.getClass() == Yield.class) {
                         await.handled = true;
                         Yield yielded = (Yield) await;
-
 //                        System.out.println(String.format("%d %s", id, yielded));
 //                        System.out.println("ENCOUNTERED YIELD");
-                        yielded.fork.thread.loops.get(yielded.awaitingTask)
-                                .set(yielded.loop, yielded.instruction);
+                        if (!yielded.doNothing) {
+                            yielded.fork.thread.loops.get(yielded.awaitingTask)
+                                    .set(yielded.loop, yielded.instruction);
+                        }
                         yielded.fork.thread.applyState(yielded);
+                        yielded.fork.thread.taskState.set(yielded.awaitingTask, yielded.currentState);
+
 
                     } else if (await.getClass() == Fork.class) {
                         Fork fork = (Fork) await;
-                        fork.thread.applyState(fork.stateChanges);
                         fork.thread.loops.get(fork.taskNo).set(fork.loop, fork.next);
+                        fork.thread.applyState(fork.stateChanges);
 
                         changesForForkedThread.add(fork);
                     } else if (await.getClass() == StateChange.class) {
@@ -342,12 +373,12 @@ public class MultiAwait extends Thread {
                 }
 
 //                System.out.println(String.format("pending changes %s", pendingChanges));
-                for (int i = -1; i < state.size(); i++) {
+                for (int i = 1; i < state.size(); i++) {
 
-                    int task = (currentTask + i + 1) % state.size();
-                    // System.out.println(String.format("%d is %d", task, state.get(task)));
+                    int task = (currentTask + i) % state.size();
                     if (state.get(task) == 0) {
                         currentTask = task;
+                        break;
                     }
                 }
 
@@ -359,12 +390,12 @@ public class MultiAwait extends Thread {
                 finishedReading = true;
 
 
-
             }
             n++;
 
 
-            if (n % 500 == 0 && writeReset) {
+
+            if (n > 500 && writeReset) {
                 n = 0;
 //                System.out.println(String.format("%d writing", id));
                 writingCount++;
@@ -386,7 +417,7 @@ public class MultiAwait extends Thread {
 
 
 
-                    nextThread.changesForThisThread.addAll(changesForForkedThread);
+                    nextThread.changesForThisThread.add(new ArrayList<>(changesForForkedThread));
                     changesForForkedThread.clear();
                     threads.get(next).readingCancelled = false;
                     threads.get(next).finishedReading = false;
@@ -394,7 +425,7 @@ public class MultiAwait extends Thread {
                     readingCancelled = false;
                     reading = true;
                     finishedReading = false;
-                    nextThread.writeReset = true;
+                    strictNextThread.writeReset = true;
                     // System.out.println(String.format("Passing the baton to %d", next));
 //                    submissions.clear();
 
@@ -409,11 +440,12 @@ public class MultiAwait extends Thread {
         for (TaskAction action : readingpreyield) {
 //            System.out.println(String.format("readingpre %s", action));
             if (action.getClass() == Yield.class) {
-//                System.out.println("encountered yield in next thread");
+                System.out.println("encountered yield in next thread");
                 Yield yielded = (Yield) action;
+                yielded.fork.thread.applyState(yielded);
                 yielded.fork.thread.loops.get(yielded.awaitingTask)
                         .set(yielded.loop, yielded.instruction);
-                yielded.fork.thread.applyState(yielded);
+                yielded.fork.thread.taskState.set(yielded.awaitingTask, yielded.currentState);
             }
             if (action.getClass() == Fork.class) {
                 Fork fork = (Fork) action;
@@ -432,17 +464,17 @@ public class MultiAwait extends Thread {
 
     private void applyState(List<StateChange> stateChanges) {
         for (StateChange change : stateChanges) {
-            state.put(change.task, change.newState);
+            change.thread.state.put(change.task, change.newState);
         }
     }
 
     private void applyState(Yield yielded) {
         for (StateChange change : yielded.stateChanges) {
-            state.put(change.task, change.newState);
+            yielded.fork.thread.state.put(change.task, change.newState);
         }
     }
 
-    private List<TaskAction> runTask(String caller, int awaitingTask,
+    private List<TaskAction> runTask(MultiAwait thread, MultiAwait nextThread, String caller, int awaitingTask,
                                      Map<Integer, Integer> state,
                                      List<String> taskState,
                                      Map<Integer, List<String>> loops,
@@ -451,48 +483,53 @@ public class MultiAwait extends Thread {
                                      List<List<TaskAction>> callbacks,
                                      List<List<TaskAction>> myCallbacks) {
         List<TaskAction> submissions = new ArrayList<>();
+        List<Yield> callbacksToAdd = new ArrayList<>();
 
-//        System.out.println(String.format("Current state: %s", currentState));
+
+//        System.out.println(String.format("Current state: %s %s %s %s %s",
+//                thread.state, currentState,
+//                thread.loops.get(0).get(0),
+//                thread.loops.get(1).get(0),
+//                thread.loops.get(2).get(0)));
 
         switch (currentState) {
             case "task3.print(\"task3. Starting task3 task\");":
                 System.out.println(
                         String.format("task3. Starting task3 task %s",
                                 caller));
-                taskState.set(currentTask, "task1.while True:");
-                taskState.set(2, "task3.while True:");
-                state.put(2, 0);
+                thread.taskState.set(thread.currentTask, "task1.while True:");
+                thread.taskState.set(2, "task3.while True:");
+                thread.state.put(2, 0);
                 break;
             case "task1.print(\"task1. Starting main task\");":
                 System.out.println(
                         String.format("task1. Starting main task %s",
                                 caller));
-                 taskState.set(currentTask, "task1.while True:");
-                state.put(0, 0);
+                thread.taskState.set(thread.currentTask, "task1.while True:");
+                thread.state.put(0, 0);
                 break;
             case "task1.while True:":
 //                System.out.println(String.format("Running task %d %s %s task1 loop %s %s", id, currentState, caller, loops.get(0).get(0), caller));
 
-//                    System.out.println(String.format("", ));
-                switch (loops.get(0).get(0)) {
+                switch (thread.loops.get(0).get(0)) {
                     case "task1.handle1 = task2.fork();":
 //                        System.out.println("task1.handle1 = task2.fork(), forking");
 //                        state.put(1, 0); // resume task2
 //                        System.out.println(state);
-                        loops.get(0).set(0, "task1.handle2 = task3.fork();");
-                        state.put(0, 0);
+                        thread.loops.get(0).set(0, "task1.handle2 = task3.fork();");
+                        thread.state.put(0, 0);
 //                        loops.get(0).set(0, "task1.value = handle1.await()");
 
                         List<StateChange> stateChanges = new ArrayList<>();
-                        stateChanges.add(new StateChange(this, 1, 0));
-                        stateChanges.add(new StateChange(this, 0, 0));
+                        stateChanges.add(new StateChange(thread, 1, 0));
+                        stateChanges.add(new StateChange(thread, 0, 0));
 
 //                        System.out.println(String.format("next is %s", loops.get(0).get(0)));
                         // awaitingTask.add(0);
                         // loops.get(1).set(0, "task2.yield value2++");
                         Fork fork2 = new Fork(stateChanges,
                                 "task2.while True:",
-                                this,
+                                thread,
                                 0,
                                 1,
                                 0,
@@ -500,14 +537,16 @@ public class MultiAwait extends Thread {
 
                                 new LoopEnvironment(0,
                                         0,
-                                        "awaited.join"),
-                                currentState,
-                                taskState,
-                                loops,
-                                state,
-                                variables,
+                                        "awaited.join", true),
+                                "task1.while True:",
+                                thread.taskState,
+                                thread.loops,
+                                thread.state,
+                                thread.variables,
                                 callbacks);
+                        thread.lock.writeLock().lock();
                         callbacks.get(0).add(fork2);
+                        thread.lock.writeLock().unlock();
                         submissions.add(fork2);
 //                        System.out.println(String.format("Setting callbacks for thread %d %s", id, caller));
                         break;
@@ -515,20 +554,20 @@ public class MultiAwait extends Thread {
 //                        System.out.println("task1.handle2 = task3.fork(), forking");
 //                        state.put(1, 0); // resume task2
 //                        System.out.println(state);
-                        taskState.set(currentTask, "task3.print(\"task3. Starting task3 task\");");
-                        loops.get(0).set(0, "task1.value = handle2.await()");
+                        thread.taskState.set(currentTask, "task3.print(\"task3. Starting task3 task\");");
+                        thread.loops.get(0).set(0, "task1.value = handle2.await()");
                         //
-                        state.put(0, 0);
+                        thread.state.put(0, 0);
                         List<StateChange> stateChanges2 = new ArrayList<>();
-                        stateChanges2.add(new StateChange(this, 0, 0));
-                        stateChanges2.add(new StateChange(this, 2, 0));
+                        stateChanges2.add(new StateChange(thread, 0, 0));
+                        stateChanges2.add(new StateChange(thread, 2, 0));
 
 //                        System.out.println(String.format("next is %s", loops.get(0).get(0)));
                         // awaitingTask.add(0);
                         // loops.get(1).set(0, "task2.yield value2++");
                         Fork fork3 = new Fork(stateChanges2,
                                 "task3.while True:",
-                                this,
+                                thread,
                                 0,
                                 2,
                                 0,
@@ -536,70 +575,87 @@ public class MultiAwait extends Thread {
 
                                 new LoopEnvironment(0,
                                         0,
-                                        "awaited.join"),
-                                currentState,
-                                taskState,
-                                loops,
-                                state,
-                                variables,
+                                        "awaited.join", false),
+                                "task1.while True:",
+                                thread.taskState,
+                                thread.loops,
+                                thread.state,
+                                thread.variables,
                                 callbacks);
 
+                        thread.lock.writeLock().lock();
                         callbacks.get(0).add(fork3);
+                        thread.lock.writeLock().unlock();
                         submissions.add(fork3);
 //                        System.out.println(String.format("Setting callbacks for thread %d %s", id, caller));
                         break;
                     case "task1.value = handle1.await()":
 //                        System.out.println(String.format("Awaiting %s", caller));
-                        state.put(0, 1); // pause
+                        thread.state.put(0, 1); // pause
                         break;
                     case "task1.value = handle2.await()":
 //                        System.out.println(String.format("Awaiting %s", caller));
-                        state.put(0, 1); // pause
+                        thread.state.put(0, 1); // pause
                         break;
                     case "handle1.awaited":
 //                        System.out.println(String.format("Await finished %s", caller));
 
                         break;
                     case "wait":
-                        state.put(0, 1);
+                        thread.state.put(0, 1);
                         break;
 
                     case "awaited.join":
-                        List<TaskAction> taskActions = myCallbacks.get(1);
+
+//                        System.out.println(String.format("%d Awaited join %d %d",
+//                                id,
+//                                thread.callbacks.get(1).size(),
+//                                thread.callbacks.get(2).size()));
+
+                        List<TaskAction> taskActions = thread.callbacks.get(1);
                         List<TaskAction> removals = new ArrayList<>();
+                        thread.lock.writeLock().lock();
                         for (TaskAction action : taskActions) {
                             Yield yielded = (Yield) action;
                             if (yielded.taskNo == 1) {
                                 removals.add(action);
                                 yielded.fork.variables.put("value", yielded.returnValue);
-                                yielded.fork.thread.loops.get(0).set(0, "awaited.join");
+                                // yielded.fork.thread.loops.get(0).set(0, "awaited.join");
                                 submissions.add(new StateChange(yielded.fork.thread, 0, 0));
+//                                System.out.println("handled yield task1");
                             }
                         }
-
-
-
                         for (TaskAction removal : removals) {
                             taskActions.remove(removal);
                         }
-                        
-                        taskActions = myCallbacks.get(2);
+
+//                        System.out.println(String.format("%d %d", callbacks.get(2).size(), callbacks.get(1).size()));
+
+
+                        taskActions = thread.callbacks.get(2);
                         removals = new ArrayList<>();
+
                         for (TaskAction action : taskActions) {
                             Yield yielded = (Yield) action;
                             if (yielded.taskNo == 2) {
                                 removals.add(action);
                                 yielded.fork.variables.put("value4", yielded.returnValue);
-                                yielded.fork.thread.loops.get(0).set(0, "awaited.join");
+                                // yielded.fork.thread.loops.get(0).set(0, "awaited.join");
                                 submissions.add(new StateChange(yielded.fork.thread, 0, 0));
+//                                System.out.println("handled yield task2");
 
                             }
                         }
                         for (TaskAction removal : removals) {
                             taskActions.remove(removal);
                         }
-                        if (myCallbacks.get(2).size() == 0 && myCallbacks.get(1).size() == 0) {
-                            loops.get(0).set(0, "task1.print(value)");
+                        thread.lock.writeLock().unlock();
+
+                        int sizeA = thread.callbacks.get(2).size();
+                        int sizeB = thread.callbacks.get(1).size();
+                        if (sizeA == 0 && sizeB == 0) {
+//                                System.out.println("set to print");
+                                thread.loops.get(0).set(0, "task1.print(value)");
                         }
 
 
@@ -607,16 +663,16 @@ public class MultiAwait extends Thread {
                         break;
                     case "task1.print(value)":
                         System.out.println(String.format("%d Value: %s Value %s %s",
-                                id, variables.get("value"), variables.get("value4"), caller));
-                        loops.get(0).set(0, "task1.handle1 = task2.fork();");
+                                id, thread.variables.get("value"), thread.variables.get("value4"), caller));
+                        thread.loops.get(0).set(0, "task1.handle1 = task2.fork();");
 
-
+                        break;
                 }
                 break;
             case "task2.print(\"task2. Starting task2 task\");":
                 System.out.println(String.format("task2. Starting task2 task %s",
                         caller));
-                taskState.add(currentTask, "task2.while True:");
+                thread.taskState.add(currentTask, "task2.while True:");
 
                 break;
             case "task2.while True:":
@@ -624,21 +680,23 @@ public class MultiAwait extends Thread {
 //
                     // System.out.println(String.format("task2 loop %s %s", loops.get(1).get(0), caller));
 //                }
-                switch (loops.get(1).get(0)) {
+                switch (thread.loops.get(1).get(0)) {
                     case "task2.yieldwait":
-                        submissions.add(new StateChange(this, 1, 1));
-                        state.put(1, 1);
+                        submissions.add(new StateChange(thread, 1, 1));
+                        thread.state.put(1, 1);
                         break;
                     case "task2.yield value2++":
 //                        System.out.println(String.format("%d %s %s", id, caller, callbacks));
-
+//                        System.out.println("task2 yield");
                         List<TaskAction> removals = new ArrayList<>();
-                        for (TaskAction action : callbacks.get(0)) {
+                        thread.lock.writeLock().lock();
+
+                        for (TaskAction action : thread.callbacks.get(0)) {
                             Fork fork2 = (Fork) action;
                             if (fork2.taskNo == 1) {
 
                                 removals.add(fork2);
-                                //                        System.out.println(myCallbacks);
+                                //                        System.out.println(callbacks);
                                 fork2.thread.state.put(1, 1);
                                 Integer value2 = 0;
                                 if (fork2.thread.variables.containsKey("value2")) {
@@ -654,8 +712,8 @@ public class MultiAwait extends Thread {
 //                        loops.get(1).set(0, "task2.yieldwait");
 //                        state.put(1, 1);
                                 List<StateChange> stateChanges = new ArrayList<>();
-                                 stateChanges.add(new StateChange(this, 1, 1));
-                                stateChanges.add(new StateChange(this, fork2.awaiterTask, 0));
+                                 stateChanges.add(new StateChange(thread, 1, 1));
+                                stateChanges.add(new StateChange(thread, fork2.awaiterTask, 0));
 //                        System.out.println(String.format("IN YIELD %s %s", caller,
 //                                fork2.task));
                                 Yield yield = new Yield(fork2.thread, fork2,
@@ -665,35 +723,44 @@ public class MultiAwait extends Thread {
                                         fork2.awaiterTask,
                                         fork2.loopEnvironment.loop,
                                         fork2.loopEnvironment.instruction,
-                                        1);
+                                        1,
+                                        fork2.loopEnvironment.doNothing);
                                 submissions.add(yield);
-                                myCallbacks.get(1).add(yield);
+                                callbacksToAdd.add(yield);
                             }
                         }
-                        for (TaskAction removal : removals) {
-                            callbacks.get(0).remove(removal);
+                        for (Yield yield : callbacksToAdd) {
+                            yield.thread.callbacks.get(1).add(yield);
+//                            System.out.println("Added callback1");
                         }
+                        for (TaskAction removal : removals) {
+                            thread.callbacks.get(0).remove(removal);
+                        }
+                        thread.lock.writeLock().unlock();
 
-
+                        break;
                 }
                 break;
             case "task3.while True:":
-//                System.out.println(String.format("Running task %d %s %s task3 loop %s %s", id, currentState, caller, loops.get(0).get(0), caller));
+//                System.out.println(String.format("Running task %d %s %s task3 loop %s %s", id, currentState, caller, loops.get(2).get(0), caller));
 
-                switch (loops.get(2).get(0)) {
+                switch (thread.loops.get(2).get(0)) {
                     case "task3.yieldwait":
-                        submissions.add(new StateChange(this, 2, 1));
-                        state.put(1, 1);
+                        submissions.add(new StateChange(thread, 2, 1));
+                        thread.state.put(1, 1);
                         break;
                     case "task3.yield value3++":
+//                        System.out.println("task3 yield");
+
 //                            System.out.println(String.format("%d Yield2 %s ", id, caller));
 //                            System.out.println(String.format("%d %s %s", id, caller, callbacks));
                         List<TaskAction> removals = new ArrayList<>();
-                        for (TaskAction action : callbacks.get(0)) {
+                        thread.lock.writeLock().lock();
+                        for (TaskAction action : thread.callbacks.get(0)) {
                             Fork fork3 = (Fork) action;
                             if (fork3.taskNo == 2) {
                                 removals.add(fork3);
-                                //                        System.out.println(myCallbacks);
+                                //                        System.out.println(callbacks);
                                 fork3.thread.state.put(2, 1);
                                 Integer value3 = 0;
                                 if (fork3.thread.variables.containsKey("value3")) {
@@ -709,8 +776,8 @@ public class MultiAwait extends Thread {
     //                        loops.get(1).set(0, "task2.yieldwait");
     //                        state.put(1, 1);
                                 List<StateChange> stateChanges = new ArrayList<>();
-                                stateChanges.add(new StateChange(this, 2, 1));
-                                stateChanges.add(new StateChange(this, fork3.awaiterTask, 0));
+                                stateChanges.add(new StateChange(thread, 2, 1));
+                                stateChanges.add(new StateChange(thread, fork3.awaiterTask, 0));
     //                        System.out.println(String.format("IN YIELD %s %s", caller,
     //                                fork3.task));
                                 Yield yield = new Yield(fork3.thread, fork3,
@@ -720,14 +787,22 @@ public class MultiAwait extends Thread {
                                         fork3.awaiterTask,
                                         fork3.loopEnvironment.loop,
                                         fork3.loopEnvironment.instruction,
-                                        2);
+                                        2,
+                                        fork3.loopEnvironment.doNothing);
                                 submissions.add(yield);
-                                myCallbacks.get(2).add(yield);
+                                callbacksToAdd.add(yield);
                             }
                         }
                         for (TaskAction removal : removals) {
-                            callbacks.get(0).remove(removal);
+                            thread.callbacks.get(0).remove(removal);
                         }
+                        for (Yield yield : callbacksToAdd) {
+                            yield.thread.callbacks.get(2).add(yield);
+//                            System.out.println("Added callback2");
+                        }
+                        thread.lock.writeLock().unlock();
+                        break;
+
 
 
                 }
@@ -748,11 +823,13 @@ public class MultiAwait extends Thread {
         private final int task;
         private final int loop;
         private final String instruction;
+        public boolean doNothing;
 
-        public LoopEnvironment(int task, int loop, String instruction) {
+        public LoopEnvironment(int task, int loop, String instruction, boolean doNothing) {
             this.task = task;
             this.loop = loop;
             this.instruction = instruction;
+            this.doNothing = doNothing;
         }
     }
 
@@ -780,6 +857,7 @@ public class MultiAwait extends Thread {
         private final int awaitingTask;
         private final int loop;
         private final String instruction;
+        private final boolean doNothing;
         public int taskNo;
         private Fork fork;
         private String currentState;
@@ -793,7 +871,8 @@ public class MultiAwait extends Thread {
                      int awaitingTask,
                      int loop,
                      String instruction,
-                     int taskNo) {
+                     int taskNo,
+                     boolean doNothing) {
             super(thread);
             this.taskNo = taskNo;
             this.thread = thread;
@@ -805,6 +884,7 @@ public class MultiAwait extends Thread {
             this.awaitingTask = awaitingTask;
             this.loop = loop;
             this.instruction = instruction;
+            this.doNothing = doNothing;
         }
 
         public String toString() {
