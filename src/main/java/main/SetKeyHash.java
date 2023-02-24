@@ -28,10 +28,10 @@ public class SetKeyHash {
         System.out.println(map.get(search));
         System.out.println("Partial set search");
         HashSet<String> partialSearch = new HashSet<>();
-        search.add("tomato");
-        search.add("broccoli");
+        partialSearch.add("tomato");
+        partialSearch.add("broccoli");
         for (HashSet<String> set : map.keySet()) {
-            if (set.containsAll(search)) {
+            if (set.containsAll(partialSearch)) {
                 System.out.println(String.format("Found partial match %s", map.get(set)));
             }
         }

@@ -38,6 +38,20 @@ public class LiteralStringAST extends AST {
     }
 
     @Override
+    protected CodeSegment genparameter() {
+        System.out.println(String.format("Generating literal string parameter", this));
+        List<String> instructions = new ArrayList<>();
+        List<Map<String, String>> genned = new ArrayList<>();
+
+        instructions.add("pushargumentstr");
+        HashMap<String, String> data = new HashMap<>();
+
+        data.put("argument", token);
+        genned.add(data);
+        return new CodeSegment(instructions, genned);
+    }
+
+    @Override
     public String toString() {
         return token;
     }

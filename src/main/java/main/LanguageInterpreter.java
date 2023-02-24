@@ -1,7 +1,7 @@
 package main;
 
 
-import java.sql.SQLOutput;
+
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -13,9 +13,9 @@ public class LanguageInterpreter extends Thread {
     private Pattern pattern;
     private final AST parsedProgram;
     private Matcher matcher;
-    public HashMap<String, Integer> intvariables;
-    public HashMap<String, String> stringvariables;
-    private HashMap<String, InstructionHandler> instructionHandlers;
+    public Map<String, Integer> intvariables;
+    public Map<String, String> stringvariables;
+    private Map<String, InstructionHandler> instructionHandlers;
     private List<String> programInstructionTypes;
     public String program;
     public volatile boolean running = true;
@@ -28,13 +28,32 @@ public class LanguageInterpreter extends Thread {
     private Map<String, VariableDeclaration> types;
     private List<Integer> intstack;
     private List<String> stringstack;
+    private List<Integer> argumentstack;
+    private List<String> stringarguments;
 
-    public LanguageInterpreter(AST parsedProgram, ArrayList<ArrayList<LanguageInterpreter.AlternativeMessage>> messages, int subthread, int messageRate, int threadNum, int i, ArrayList<Object> objects, int totalSize, boolean synchronizer, int mailboxes, int numSubthreads, List<String> programInstructionTypes, String programString, int programStart, HashMap<String, Integer> variables, Map<String, Integer> labels) {
+    public LanguageInterpreter(AST parsedProgram,
+                               ArrayList<ArrayList<AlternativeMessage>> messages,
+                               int subthread,
+                               int messageRate,
+                               int threadNum,
+                               int i,
+                               ArrayList<Object> objects,
+                               int totalSize,
+                               boolean synchronizer,
+                               int mailboxes,
+                               int numSubthreads,
+                               List<String> programInstructionTypes,
+                               String programString,
+                               int programStart,
+                               HashMap<String, Integer> variables,
+                               Map<String, Integer> labels,
+                               Map<String, String> stringvariables,
+                               Map<String, Integer> intvariables) {
         this.programInstructionTypes = programInstructionTypes;
+        this.intvariables = intvariables;
         this.program = program;
         this.programStart = programStart;
-        this.intvariables = new HashMap<>(variables);
-        this.stringvariables = new HashMap<>();
+        this.stringvariables = stringvariables;
         this.mapvariables = new HashMap<>();
         this.subthread = subthread;
         this.numSubthreads = numSubthreads;
@@ -56,7 +75,9 @@ public class LanguageInterpreter extends Thread {
         this.inqueue = new HashMap<>();
         this.types = new HashMap<>();
         this.stringstack = new ArrayList<>();
-
+        this.intstack = new ArrayList<>();
+        this.argumentstack = new ArrayList<>();
+        this.stringarguments = new ArrayList<>();
 
     }
 
@@ -97,12 +118,19 @@ public class LanguageInterpreter extends Thread {
             }
         }
         System.out.println("generated instructions:");
-        System.out.println(codegen.instructions);
+        for (int x = 0 ; x < codegen.instructions.size(); x++) {
+            System.out.println(String.format("%d %s %s", x, codegen.instructions.get(x), codegen.parsed.get(x)));
+        };
         System.out.println(labels);
         List<Map<String, Object>> mapstack = new ArrayList<>();
         List<String> typestack = new ArrayList<>();
         List<String> mapassign = new ArrayList<>();
+        List<LValue> lvalue = new ArrayList<>();
         int pc = programStart;
+        stringarguments.add("1");
+        argumentstack.add(100);
+
+        stack.add(46);
         while (running) {
 
             //System.out.println(String.format("program start %d", pc));
@@ -120,12 +148,33 @@ public class LanguageInterpreter extends Thread {
                     case "popstruct":
                         mapstack.remove(0);
                         break;
+                    case "define":
+                        switch (parsed.get("type")) {
+                            case "int":
+                                Integer value5 = argumentstack.remove(0);
+                                intvariables.put(parsed.get("variable"), value5);
+                                break;
+                            case "string":
+                                String value6 = stringarguments.remove(0);
+                                stringvariables.put(parsed.get("variable"), value6);
+                                break;
+                        }
+                        System.out.println(String.format("%d DEFINE", pc));
+                        break;
                     case "pushtype":
                         typestack.add(parsed.get("type"));
                         break;
                     case "pushstring":
 
                         stringstack.add(parsed.get("token"));
+                        break;
+                    case "pushargumentstr":
+                        System.out.println("Pushing string argument");
+                        stringarguments.add(parsed.get("argument"));
+                        break;
+                    case "pushint":
+
+                        intstack.add(Integer.valueOf(parsed.get("token")));
                         break;
                     case "pushstruct":
                         HashMap<String, Object> e = new HashMap<>();
@@ -140,23 +189,28 @@ public class LanguageInterpreter extends Thread {
                         String key = mapassign.remove(mapassign.size() - 1);
                         String type = typestack.remove(typestack.size() - 1);
                         System.out.println(String.format("Stack Type %s", type));
-                        Object value = null;
+                        Object value;
                         switch (type) {
                             case "int":
-                                value = String.valueOf(intstack.remove(intstack.size() - 1));
+                                int value3 = intstack.remove(intstack.size() - 1);
+                                mapstack.get(mapstack.size() - 1).put(key, value3);
+                                System.out.println(String.format("Map set %s int %d", key, value3));
                                 break;
                             case "string":
                                 System.out.println("Map set string");
                                 value = stringstack.remove(stringstack.size() - 1);
+                                mapstack.get(mapstack.size() - 1).put(key, value);
+                                System.out.println(String.format("Map set %s %s", key, value));
                                 break;
                             case "struct":
                                 System.out.println("Pushing mapstack");
                                 value = mapstack.remove(mapstack.size() - 1);
+                                mapstack.get(mapstack.size() - 1).put(key, value);
+                                System.out.println(String.format("Map set %s %s", key, value));
                                 break;
                         }
 
-                        mapstack.get(mapstack.size() - 1).put(key, value);
-                        System.out.println(String.format("Map set %s %s", key, value));
+
                         break;
                     case "store":
 //                        System.out.println(String.format("CALLING STORE %s %s", parsed.get("type"), parsed));
@@ -170,6 +224,32 @@ public class LanguageInterpreter extends Thread {
                                 break;
                         }
                         break;
+                    case "loadhash":
+                        String key2 = stringstack.remove(stringstack.size() - 1);
+                        Map<String, Object> remove1 = mapstack.remove(mapstack.size() - 1);
+                        Object value3 = remove1.get(key2);
+                        System.out.println(String.format("Fetched %s %s", key2, value3));
+                        if (remove1 instanceof HashMap) {
+                            mapstack.add((HashMap<String, Object>)remove1);
+                            lvalue.add(new LValue("hash", remove1, key2));
+                        }
+                        if (value3 instanceof String) {
+                            stringstack.add((String) value3);
+                            lvalue.add(new LValue("variable", remove1, key2));
+                        }
+
+                        break;
+                    case "loadhashvar":
+                        String key3 = stringstack.remove(stringstack.size() - 1);
+                        String var = stringvariables.get(key3);
+                        Map<String, Object> fetched2 = (Map<String, Object>) mapstack.remove(mapstack.size() - 1).get(var);
+                        System.out.println(String.format("Fetched %s %s %s", var, key3, fetched2));
+                        mapstack.add(fetched2);
+                        break;
+                    case "pushargument":
+                        System.out.println("pushing argument");
+                        argumentstack.add(Integer.valueOf(parsed.get("argument")));
+                        break;
                     case "load":
                         types.get(parsed.get("token"));
                         String token1 = parsed.get("token");
@@ -178,7 +258,15 @@ public class LanguageInterpreter extends Thread {
                             case "struct":
                                 Map<String, Object> token = mapvariables.get(token1);
                                 mapstack.add(token);
+                                break;
+                            case "int":
+                                intstack.add(intvariables.get(parsed.get("variable")));
+                                break;
                         }
+                        break;
+                    case "pluseq":
+                        LValue remove = lvalue.remove(lvalue.size() - 1);
+                        remove.add(intstack.remove(intstack.size() - 1));
                         break;
                     case "set":
                         String variableName = parsed.get("variableName");
@@ -188,8 +276,10 @@ public class LanguageInterpreter extends Thread {
                         switch (type) {
                             case "int":
                                 intvariables.put(variableName, Integer.parseInt(defaultValue));
+                                break;
                             case "struct":
                                 mapvariables.put(variableName, mapstack.remove(0));
+                                break;
 
                         }
                         break;
@@ -248,7 +338,13 @@ public class LanguageInterpreter extends Thread {
                         intvariables.put(variableName2, newValue);
                         break;
                     case "return":
-                        jump = stack.remove(0);
+                        jump = stack.remove(stack.size() - 1);
+                        System.out.println(String.format("%d RETURN %d", pc, jump));
+                        break;
+                    case "call":
+                        stack.add(pc + 1);
+                        System.out.println("CALLING METHOD");
+                        jump = labels.get(parsed.get("method"));
                         break;
                     case "sendcode":
 
@@ -287,6 +383,8 @@ public class LanguageInterpreter extends Thread {
                     break;
                 }
             }
+        System.out.println(mapstack);
+        System.out.println(argumentstack);
 
         }
 

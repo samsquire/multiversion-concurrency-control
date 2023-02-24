@@ -9,6 +9,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class MultiAwait extends Thread {
     private final List<List<TaskAction>> changesForThisThread;
     private final List<TaskAction> changesForForkedThread;
+    private final ReentrantReadWriteLock lock2;
     private int currentTask;
     private int id;
     private ReentrantReadWriteLock lock;
@@ -61,6 +62,7 @@ public class MultiAwait extends Thread {
         changesForForkedThread = new ArrayList<>();
         variables = new HashMap<>();
         lock = new ReentrantReadWriteLock();
+        lock2 = new ReentrantReadWriteLock();
     }
 
     public static void main(String[] args) throws InterruptedException {
@@ -293,9 +295,12 @@ public class MultiAwait extends Thread {
             if (reading) {
                 readingCount++;
 //                System.out.println(String.format("%d currentTask %d ==========================", id, currentTask));
+                lock2.writeLock().lock();
+
                 if (changesForThisThread.size() > 0) {
                     for (TaskAction await : changesForThisThread.get(0)) {
                         if (await.handled) {
+                            lock2.writeLock().unlock();
                             continue;
                         }
 
@@ -325,9 +330,10 @@ public class MultiAwait extends Thread {
                             stateChange.thread.state.put(stateChange.task, stateChange.newState);
                         }
                     }
-
                     changesForThisThread.remove(0);
                 }
+                lock2.writeLock().unlock();
+
 //                System.out.println(changesForForkedThread.size());
 
                 List<TaskAction> main = runTask(this, previousThread, "main",
@@ -395,7 +401,7 @@ public class MultiAwait extends Thread {
 
 
 
-            if (n > 500 && writeReset) {
+            if (writeReset) {
                 n = 0;
 //                System.out.println(String.format("%d writing", id));
                 writingCount++;
@@ -417,7 +423,9 @@ public class MultiAwait extends Thread {
 
 
 
+                    nextThread.lock2.writeLock().lock();
                     nextThread.changesForThisThread.add(new ArrayList<>(changesForForkedThread));
+                    nextThread.lock2.writeLock().unlock();
                     changesForForkedThread.clear();
                     threads.get(next).readingCancelled = false;
                     threads.get(next).finishedReading = false;
@@ -440,7 +448,6 @@ public class MultiAwait extends Thread {
         for (TaskAction action : readingpreyield) {
 //            System.out.println(String.format("readingpre %s", action));
             if (action.getClass() == Yield.class) {
-                System.out.println("encountered yield in next thread");
                 Yield yielded = (Yield) action;
                 yielded.fork.thread.applyState(yielded);
                 yielded.fork.thread.loops.get(yielded.awaitingTask)
@@ -494,9 +501,9 @@ public class MultiAwait extends Thread {
 
         switch (currentState) {
             case "task3.print(\"task3. Starting task3 task\");":
-                System.out.println(
-                        String.format("task3. Starting task3 task %s",
-                                caller));
+//                System.out.println(
+//                        String.format("task3. Starting task3 task %s",
+//                                caller));
                 thread.taskState.set(thread.currentTask, "task1.while True:");
                 thread.taskState.set(2, "task3.while True:");
                 thread.state.put(2, 0);
@@ -593,10 +600,7 @@ public class MultiAwait extends Thread {
 //                        System.out.println(String.format("Awaiting %s", caller));
                         thread.state.put(0, 1); // pause
                         break;
-                    case "task1.value = handle2.await()":
-//                        System.out.println(String.format("Awaiting %s", caller));
-                        thread.state.put(0, 1); // pause
-                        break;
+
                     case "handle1.awaited":
 //                        System.out.println(String.format("Await finished %s", caller));
 
@@ -604,7 +608,7 @@ public class MultiAwait extends Thread {
                     case "wait":
                         thread.state.put(0, 1);
                         break;
-
+                    case "task1.value = handle2.await()":
                     case "awaited.join":
 
 //                        System.out.println(String.format("%d Awaited join %d %d",
@@ -662,8 +666,8 @@ public class MultiAwait extends Thread {
 
                         break;
                     case "task1.print(value)":
-                        System.out.println(String.format("%d Value: %s Value %s %s",
-                                id, thread.variables.get("value"), thread.variables.get("value4"), caller));
+//                        System.out.println(String.format("%d Value: %s Value %s %s",
+//                                id, thread.variables.get("value"), thread.variables.get("value4"), caller));
                         thread.loops.get(0).set(0, "task1.handle1 = task2.fork();");
 
                         break;

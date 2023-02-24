@@ -40,8 +40,10 @@ public class ProgramParser {
         this.programString = programString;
         this.tokenHandling = new HashMap<>();
         this.tokenHandling.put("type operator", "append");
-        this.tokenHandling.put("posttype operator", "promote");
+        this.tokenHandling.put("type openparameter", "promoteleft");
+        this.tokenHandling.put("posttype operator", "append");
 
+        this.tokenHandling.put("type string", "append");
         this.tokenHandling.put("type identifier", "append");
         this.tokenHandling.put("type property", "promoteleft");
         this.tokenHandling.put("type arraybegin", "append");
@@ -55,10 +57,10 @@ public class ProgramParser {
 
     }
 
-    public char getChar(int pos, boolean peek) {
+    public char getChar(int pos, int amount) {
 
         char letter = programString.charAt(pos);
-        if (pos + 1 >= this.programString.length()) {
+        if (pos + amount >= this.programString.length()) {
             this.end = true;
             return letter;
         } else {
@@ -69,8 +71,8 @@ public class ProgramParser {
         return letter;
     }
 
-    public String getToken(boolean peek) {
-        String token = getTokenReal(peek);
+    public String getToken(boolean peek, int peekAmount) {
+        String token = getTokenReal(peek, peekAmount);
         System.out.println(String.format("TOKEN GET: %s (%b)", token, peek));
         for (int i = 0; i < depth.length; i++) {
             System.out.println(depth[i]);
@@ -82,7 +84,7 @@ public class ProgramParser {
         this.depthChange = false;
     }
 
-    public String getTokenReal(boolean peek) {
+    public String getTokenReal(boolean peek, int peekAmount) {
         int remembered = this.pos;
 
         this.previousDepthChange = this.depthChange;
@@ -100,11 +102,12 @@ public class ProgramParser {
         this.type = "token";
         this.lastType = "token";
         while (this.end == false && (this.last_char == ' ' || this.last_char == '\n' || this.last_char == Character.MIN_VALUE)) {
-            this.last_char = getChar(this.pos, peek);
+            this.last_char = getChar(this.pos, 1);
         }
 
         if (this.last_char == '(') {
-            this.last_char = getChar(this.pos, peek);
+            this.last_char = getChar(this.pos, 1);
+            this.type = "openparameter";
             lastToken = "openbracket";
             this.depthChange = true;
             this.depthWhich = BRACKETS;
@@ -114,17 +117,18 @@ public class ProgramParser {
             }
             this.depth[depthWhich] += this.depthAmount;
             this.precedence = 100;
+            String tokenToReturn = lastToken;
             if (peek) {
                 this.last_char = remembered_char;
                 this.pos = remembered;
                 this.lastToken = rememberedlastToken;
                 this.type = rememberedType;
             }
-            return lastToken;
+            return tokenToReturn;
         }
 
         if (this.last_char == ')') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             lastToken = "closebracket";
             this.precedence = 100;
             this.closeToken = true;
@@ -145,7 +149,7 @@ public class ProgramParser {
         }
 
         if (this.last_char == '*') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "operator";
             this.lastType = "operator";
             lastToken = "wildcard";
@@ -162,22 +166,22 @@ public class ProgramParser {
 
         String identifier = "";
         if (this.last_char == '\'') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             identifier = "";
             while (!this.end && this.last_char != '\'') {
                 if (this.last_char == '\\') {
-                    this.last_char = this.getChar(this.pos, peek);
+                    this.last_char = this.getChar(this.pos, peekAmount);
                 }
                 identifier = identifier + this.last_char;
 
-                this.last_char = this.getChar(this.pos, peek);
+                this.last_char = this.getChar(this.pos, peekAmount);
 
                 if (this.end && this.last_char != ')' && this.last_char != '\''){
                     identifier += this.last_char;
                 }
                 }
 
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "string";
             this.lastType = "string";
             this.lastToken = identifier;
@@ -201,7 +205,7 @@ public class ProgramParser {
             while (!this.end && pattern2.matcher(Character.toString(this.last_char)).find()) {
 
                 identifier = identifier + this.last_char;
-                this.last_char = this.getChar(this.pos, peek);
+                this.last_char = this.getChar(this.pos, peekAmount);
             }
 
             if (this.end && this.last_char != ')') {
@@ -222,7 +226,7 @@ public class ProgramParser {
         }
 
         if (this.last_char == '=') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "operator";
             this.lastType = "operator";
             this.lastToken = "eq";
@@ -232,17 +236,17 @@ public class ProgramParser {
                 this.lastToken = rememberedlastToken;
                 this.type = rememberedType;
             }
-            this.precedence = 7;
+            this.precedence = 100;
             return lastToken;
         }
 
         if (this.last_char == '+') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "operator";
             this.lastType = "operator";
             this.lastToken = "plus";
             // BODMAS
-            this.precedence = 5;
+            this.precedence = 8;
             if (peek) {
                 this.last_char = remembered_char;
                 this.pos = remembered;
@@ -253,7 +257,7 @@ public class ProgramParser {
         }
 
         if (this.last_char == '-') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "operator";
             this.lastType = "operator";
             this.lastToken = "minus";
@@ -269,7 +273,7 @@ public class ProgramParser {
         }
 
         if (this.last_char == '~') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "operator";
             this.lastType = "operator";
             this.lastToken = "tilde";
@@ -284,9 +288,9 @@ public class ProgramParser {
         }
 
         if (this.last_char == ',') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             lastToken = "comma";
-            this.precedence = 7;
+            this.precedence = 1;
             if (peek) {
                 this.last_char = remembered_char;
                 this.pos = remembered;
@@ -297,7 +301,7 @@ public class ProgramParser {
         }
 
         if (this.last_char == '<') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "operator";
             this.lastType = "operator";
             this.lastToken = "lessthan";
@@ -311,7 +315,7 @@ public class ProgramParser {
             return lastToken;
         }
         if (this.last_char == '[') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.lastToken = "opensquare";
             this.type = "arraybegin";
             this.depthChange = true;
@@ -332,7 +336,7 @@ public class ProgramParser {
             return lastToken;
         }
         if (this.last_char == ']') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.lastToken = "closesquare";
 
             this.type = "arrayend";
@@ -354,7 +358,7 @@ public class ProgramParser {
             return this.lastToken;
         }
         if (this.last_char == '>') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "operator";
             this.lastType = "operator";
             this.lastToken = "greaterthan";
@@ -368,7 +372,7 @@ public class ProgramParser {
             return this.lastToken;
         }
         if (this.last_char == '.') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.type = "property";
             this.lastType = "property";
             this.lastToken = "property";
@@ -382,7 +386,7 @@ public class ProgramParser {
             return lastToken;
         }
         if (this.last_char == '{') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.lastToken = "opencurly";
             this.depthChange = true;
             this.type = "hash";
@@ -402,7 +406,7 @@ public class ProgramParser {
             return this.lastToken;
         }
         if (this.last_char == '}') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.lastToken = "closecurly";
             this.precedence = 7;
             this.closeToken = true;
@@ -422,7 +426,7 @@ public class ProgramParser {
             return this.lastToken;
         }
         if (this.last_char == ';') {
-            this.last_char = this.getChar(this.pos, peek);
+            this.last_char = this.getChar(this.pos, peekAmount);
             this.lastToken = "semicolon";
             this.depthChange = false;
             this.precedence = 7;
@@ -445,12 +449,12 @@ public class ProgramParser {
     }
 
     public AST parse() {
-        String token = getToken(false);
+        String token = getToken(false, 1);
         AST programAST = null;
 
         switch (token) {
             case "threads":
-                programAST = new ProgramAST(getToken(false));
+                programAST = new ProgramAST(getToken(false, 1));
         }
         System.out.println(programAST);
         AST astNode = nextAST();
@@ -467,12 +471,12 @@ public class ProgramParser {
 
     private AST nextAST() {
         int[] depthExpect = new int[3];
-        for (int i = 0 ; i < depth.length; i++) {
+        for (int i = 0; i < depth.length; i++) {
             depthExpect[i] = depth[i];
             System.out.println(String.format("Expected: %d", depth[i]));
         }
         System.out.println("nextast");
-        String token = getToken(false);
+        String token = getToken(false, 1);
         System.out.println(String.format("nextAst Token: %s", token));
         if (token == null) {
             return null;
@@ -481,11 +485,11 @@ public class ProgramParser {
         switch (token) {
             case "lessthan":
 
-                String start = getToken(false);
+                String start = getToken(false, 1);
                 if (!start.equals("start")) {
                     throw new IllegalArgumentException("Parse error, expected <start>");
                 }
-                String end = getToken(false);
+                String end = getToken(false, 1);
                 assert end.equals("greaterthan");
                 System.out.println("Encountered start");
                 return new StartProgramAST();
@@ -495,16 +499,33 @@ public class ProgramParser {
                 return parseVariableDeclaration(depthExpect);
             case "for":
                 return parseForLoopExpression(depthExpect);
-        }
+            case "semicolon":
+                return null;
+            default:
+                System.out.println(String.format("Token %s type is %s", token, type));
+                switch (this.type) {
+                    case "identifier":
+                        String token1 = getToken(true, 1);
+                        System.out.println(String.format("Identifier match: %s", token1));
+                        if ( token1.equals("openbracket")) {
+                            System.out.println("Found method call");
+                            return new MethodCallAST(token,
+                                    parseExpression("toplevel", 0,
+                                    List.of(), depthExpect));
+                        }
+                        break;
+                }
+                return null;
 
-        return null;
+
+        }
     }
 
     private ForLoopAST parseForLoopExpression(int[] depthExpect) {
         String token;
         System.out.println("Parsing loop");
 
-        token = getToken(false);
+        token = getToken(false, 1);
         for (int i = 0 ; i < depth.length; i++) {
             System.out.println(String.format("Loop declaration Expected depth: %d", depth[i]));
             depthExpect[i] = depth[i];
@@ -516,11 +537,11 @@ public class ProgramParser {
         }
         List<String> tokens = new ArrayList<>();
         List<String> types = new ArrayList<>();
-        token = getToken(false);
+        token = getToken(false, 1);
         while (token != null && !token.equals("semicolon")) {
             tokens.add(token);
             types.add(this.type);
-            token = getToken(false);
+            token = getToken(false, 1);
 
 
         }
@@ -543,7 +564,7 @@ public class ProgramParser {
         System.out.println();
         AST postexpression = parseExpression("looppostexpression", 0, List.of("closebracket"), depthExpect);
 
-        String curly = getToken(false);
+        String curly = getToken(false, 1);
         System.out.println(String.format("Loop body start %s %s", curly, postexpression));
         int position2 = pos;
         char letter2 = programString.charAt(position);
@@ -565,22 +586,22 @@ public class ProgramParser {
             loopBodyExpression = parseFunctionBodyItem("forloopbody", depthExpect);
             System.out.println("For loop body");
         }
-        String peeked = getToken(true);
+        String peeked = getToken(true, 1);
         System.out.println(String.format("For loop peeked %s", peeked));
         return forLoopAST;
     }
 
     private AST parseVariableDeclaration(int[] depthExpect) {
-        String variableType = getToken(false);
-        String variableName = getToken(false);
+        String variableType = getToken(false, 1);
+        String variableName = getToken(false, 1);
         System.out.println(String.format("Parsing variable declaration %s %s", variableType, variableName));
-        String equals = getToken(false);
+        String equals = getToken(false, 1);
         if (!equals.equals("eq")) {
             throw new IllegalArgumentException("Expected variable declaration to have equals");
         }
         AST expression = parseExpression("label", 0, null, depthExpect);
-        System.out.println(String.format("Variable declaration expression %s %s %s", expression, lastToken, getToken(true)));
-        String semicolon = getToken(false);
+        System.out.println(String.format("Variable declaration expression %s %s %s", expression, lastToken, getToken(true, 1)));
+        String semicolon = getToken(false, 1);
         System.out.println(String.format("End of variable declaration statement %s", semicolon));
         if (!semicolon.equals("semicolon")) {
             throw new IllegalArgumentException("Variable setting doesn't end with semicolon");
@@ -603,10 +624,10 @@ public class ProgramParser {
         for (int i = 0 ; i < depth.length; i++) {
             depthToSeek[i] = depth[i];
         }
-        String token = getToken(false);
+        String token = getToken(false, 1);
         String originalType = type;
         if (token != null && token.equals("comma")) {
-            token = getToken(false);
+            token = getToken(false, 1);
         }
         System.out.println(String.format("%s Expression token %s", label, token));
         System.out.println(programString.substring(this.pos, programString.length()));
@@ -629,6 +650,7 @@ public class ProgramParser {
         if (innerAst != null && innerAst.getClass() == StructureAST.class) {
             return innerAst;
         }
+
         AST left = new ExpressionAST(innerAst);
         if (innerAst != null) {
             innerAst.parent = left;
@@ -638,13 +660,14 @@ public class ProgramParser {
             left = innerAst;
         }
 
+
         System.out.println(String.format("%s left: %s %s", label, token, left));
         int previousPos = this.pos;
         int[] depthToUse = new int[3];
         for (int i = 0 ; i < depth.length; i++) {
             depthToUse[i] = depth[i];
         }
-        String peeked = getToken(true);
+        String peeked = getToken(true, 1);
         String peekedType = this.lastType;
         tokenStop = isTokenStop(peeked, customStop);
         if (tokenStop != null) {
@@ -653,7 +676,7 @@ public class ProgramParser {
             return left;
         }
         int nextPos = this.pos;
-        String peeked2 = getToken(true);
+        String peeked2 = getToken(true, 1);
         // assert peeked.equals(peeked2);
         int lastPos = this.pos;
         assert (previousPos == nextPos) && previousPos == lastPos;
@@ -678,6 +701,7 @@ public class ProgramParser {
                 newLeft.setStopped();
                 return left;
             }
+
             if (expressionStop || left.isStopped() || newLeft.isStopped() || innerAst.isStopped()) {
                 System.out.println(String.format("%s Expression stopped on %s", label, newLeft));
                 // rewind(1);
@@ -726,7 +750,7 @@ public class ProgramParser {
                         System.out.println(String.format("Appending %s", newLeft));
 
                         left.add(newLeft);
-                        peeked = getToken(true);
+                        peeked = getToken(true, 1);
                         System.out.println(String.format("peeked is %s", peeked));
                         tokenStop = isTokenStop(peeked, customStop);
                         if (tokenStop != null) {
@@ -742,7 +766,7 @@ public class ProgramParser {
                         System.out.println(String.format("Appending %s", newLeft));
 
                         left.parent.add(newLeft);
-                        peeked = getToken(true);
+                        peeked = getToken(true, 1);
                         System.out.println(String.format("peeked is %s", peeked));
                         tokenStop = isTokenStop(peeked, customStop);
                         if (tokenStop != null) {
@@ -758,9 +782,11 @@ public class ProgramParser {
                         System.out.println(String.format("promoting %s, subsuming %s", token, newLeft));
                         if (newLeft != null) {
                             List<AST> children = ((ExpressionAST) newLeft).children;
-                            ((ExpressionAST)left).children.get(0).add(children.get(0));
-                            ((ExpressionAST)left).children.addAll(children.subList(1, children.size()));
-                            peeked = getToken(true);
+                            // ((ExpressionAST)left).children.get(0).add(children.get(0));
+                            // ((ExpressionAST)left).children.addAll(children.subList(0, children.size()));
+                            // left = newLeft;
+                            left.add(newLeft);
+                            peeked = getToken(true, 1);
                             System.out.println(String.format("peeked is %s", peeked));
 
                             tokenStop = isTokenStop(peeked, customStop);
@@ -779,28 +805,31 @@ public class ProgramParser {
                         break;
                     case "promote":
 
-                        System.out.println(String.format("promoting %s, subsuming %s", token, newLeft));
+                        System.out.println(String.format("promote, promoting %s %s, subsuming %s", left, token, newLeft));
                         if (newLeft != null) {
-                            newLeft.add(left);
-                            left = newLeft;
-                            peeked = getToken(true);
+                            left.add(newLeft);
+                            AST oldLeft = newLeft;
+                            // left = newLeft;
+                            //newLeft = oldLeft;
+                            peeked = getToken(true, 1);
                             System.out.println(String.format("peeked is %s", peeked));
                             System.out.println(left);
                             tokenStop = isTokenStop(peeked, customStop);
                             if (tokenStop != null) {
 //                            rewind(1);
+                                System.out.println(String.format("TOKEN2STOP %s %s", left, newLeft));
                                 left.setStopped();
                                 newLeft.setStopped();
                                 return left;
                             }
                             peekedType = this.lastType;
                             originalType = this.lastType;
-
                         } else {
                             left.setStopped();
                             return left;
                         }
-                        break;
+
+//                        break;
                     default:
                         originalType = type;
                         break;
@@ -837,6 +866,8 @@ public class ProgramParser {
             System.out.println(String.format("DEPTH CHANGE %s", label, ast));
             return true;
         }
+
+
         if (ast == null) {
             return true;
         }
@@ -858,9 +889,9 @@ public class ProgramParser {
             System.out.println(String.format("Stopping due to custom stop %s %s", token, customStop));
             return END_OF_EXPRESSION;
         }
-//        if (token.equals("closesquare")) {
-//            return END_OF_ARRAY;
-//        }
+        if (token.equals("closesquare")) {
+            return END_OF_ARRAY;
+        }
 
         if (token.equals("semicolon")) {
             return END_OF_EXPRESSION;
@@ -879,16 +910,26 @@ public class ProgramParser {
         System.out.println("PARSE TOKEN");
         AST ast = null;
         int[] currentDepthExpect = new int[3];
-
-        if (isNumber(token)) {
-            ast = new LiteralNumberAST(token);
-        }
         if (this.type.equals("string")) {
             ast = new LiteralStringAST(token);
             System.out.println("literal string " + token);
+        } else
+        if (isNumber(token)) {
+            System.out.println("FOUND A NUMBER");
+            ast = new LiteralNumberAST(token);
+            return ast;
         }
         if (this.type.equals("operator")) {
-            ast = new OperatorAST(token);
+            String nextToken = getToken(true, 2);
+            System.out.println(String.format("peeked token is %s %s", token, nextToken));
+            if (nextToken.equals("plus")) {
+                // we are a compound operator
+                getToken(false, 1); // use up the eq
+                ast = new OperatorAST(String.format("%seq", token));
+            } else {
+                ast = new OperatorAST(token);
+            }
+
         }
         if (this.type.equals("identifier")) {
             if (isNumber(token)) {
@@ -906,8 +947,11 @@ public class ProgramParser {
             System.out.println("Method call");
             ast = new ParameterListAST();
         }
+        if (token.equals("closebracket")) {
+            ast = END_OF_PARAMETERS;
+        }
         if (token.equals("closesquare")) {
-            return new ArrayEndAST();
+            return new EndOfArrayAST();
         }
         if (token.equals("property")) {
             System.out.println("encountered property");
@@ -930,12 +974,12 @@ public class ProgramParser {
             ast = new StructureAST(data);
             AST current = ast;
 
-            String seek = getToken(true);
+            String seek = getToken(true, 1);
             System.out.println(String.format("Structure parsing seek %s %s", token, seek));
             if (seek.equals("closecurly")) {
                 // literal
                 System.out.println("Immediately closing struct");
-                getToken(false);
+                getToken(false, 1);
                 return ast;
             } else {
                 // rewind(1);
@@ -970,9 +1014,9 @@ public class ProgramParser {
                     letter2 = programString.charAt(++position2);
                 }
                 System.out.println();
-                String comma = getToken(true);
+                String comma = getToken(true, 1);
                 if (comma != null && comma.equals("comma")) {
-                    getToken(false);
+                    getToken(false, 1);
                 }
 //
                 System.out.println(String.format("Structure Field value: %s", fieldValue));
@@ -981,12 +1025,12 @@ public class ProgramParser {
                     System.out.println(String.format("Structure end processing depth %d", lastDepth[i]));
                 }
                 data.put(fieldKey, fieldValue);
-                String token1 = getToken(true);
+                String token1 = getToken(true, 1);
 
                 System.out.println(String.format("Structure lookahead %s", token1));
                 if ("semicolon".equals(token1)) {
                     System.out.println("Reached end of structure");
-                    token1 = getToken(false);
+                    token1 = getToken(false, 1);
                     System.out.println(String.format("After semicolon, end of structure %s", token1));
                     if (token1.equals("closecurly")) {
                         break;
@@ -1021,12 +1065,12 @@ public class ProgramParser {
         while (!token.equals("closesquare")) {
             AST fieldValue = parseExpression("label", 0, null, new int[3]);
             ast.add(fieldValue);
-            token = getToken(false);
+            token = getToken(false, 1);
             if (token == null) {
                 break;
             }
             if (token.equals("comma")) {
-                token = getToken(false);
+                token = getToken(false, 1);
             }
         }
         return new ListAST(ast);
@@ -1038,10 +1082,10 @@ public class ProgramParser {
         }
         Map<AST, AST> ast = new HashMap<>();
         while (token != null && !token.equals("closecurly")) {
-            String fieldName = getToken(false);
+            String fieldName = getToken(false, 1);
             AST fieldValue = parseExpression("label", 0, null, new int[3]);
             ast.put(fieldValue, fieldValue);
-            token = getToken(false);
+            token = getToken(false, 1);
         }
         return new StructureAST(ast);
     }
@@ -1054,7 +1098,7 @@ public class ProgramParser {
 
 
             }
-            token = getToken(false);
+            token = getToken(false, 1);
             System.out.println(String.format("parseMain Token: %s", token));
 
         }
@@ -1069,35 +1113,34 @@ public class ProgramParser {
     }
 
     private AST parseFunctionDeclaration(int[] depthExpect) {
-        String functionName = getToken(false);
-        String bracket = getToken(false);
+        String functionName = getToken(false, 1);
+        String bracket = getToken(false, 1);
         if (!bracket.equals("openbracket")) {
             throw new IllegalArgumentException("Parse error, expected bracket in function declaration beginning");
         }
         List<Argument> arguments = new ArrayList<>();
 
-        String currentToken = getToken(false);
+        String currentToken = getToken(false, 1);
         while (!currentToken.equals("closebracket")) {
             System.out.println(String.format("Parsing function declaration: Token: %s", currentToken));
             String argumentType = currentToken;
-            String argumentName = getToken(false);
+            String argumentName = getToken(false, 1);
             Argument e = new Argument(argumentName, argumentType);
             System.out.println(e);
             arguments.add(e);
-            currentToken = getToken(false);
+            currentToken = getToken(false, 1);
             if (currentToken.equals("comma")) {
-                currentToken = getToken(false);
+                currentToken = getToken(false, 1);
             }
 
         }
 
         depthExpect = new int[3];
-        depthExpect = new int[3];
         for (int i = 0 ; i < depth.length; i++) {
             System.out.println(String.format("Function declaration Expected depth: %d", depth[i]));
             depthExpect[i] = depth[i];
         }
-        String curly = getToken(false);
+        String curly = getToken(false, 1);
 
         System.out.println(String.format("CurlyToken: %s", curly));
         System.out.println("Beginning of function body parsing");
@@ -1109,13 +1152,15 @@ public class ProgramParser {
         System.out.println(String.format("parseFunctionDeclaration Expression: %s", expression));
         while (!isExpressionStop("funcbodyparse", expression, depth, depthExpect)) {
             System.out.println("before parseFunctionDeclaration parseFunctionBodyItem");
-            functionAST.add(expression);
+            if (expression.getClass() != EndOfArrayAST.class) {
+                functionAST.add(expression);
+            }
             AST bodyItem = parseFunctionBodyItem("functionast", depthExpect);
             System.out.println(String.format("Function body item %s", bodyItem));
             expression = bodyItem;
 
         }
-        System.out.println(functionAST);
+        System.out.println(String.format("FUNAST2", functionAST));
         return functionAST;
     }
 
@@ -1130,7 +1175,7 @@ public class ProgramParser {
         tokens.add(token);
         types.add(this.type);
         System.out.println(String.format("FunctionBodyItem Token %s", token));
-        token = getToken(false);
+        token = getToken(false, 1);
         System.out.println(String.format("FunctionBodyItem Token %s", token));
 
         String whatis = null;
@@ -1149,7 +1194,7 @@ public class ProgramParser {
             }
             tokens.add(token);
             types.add(this.type);
-            token = getToken(false);
+            token = getToken(false, 1);
         }
         System.out.println(String.format("After parseFunctionBodyItem %s", token));
 

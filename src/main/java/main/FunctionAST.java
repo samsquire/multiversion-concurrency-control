@@ -60,6 +60,21 @@ public class FunctionAST extends AST {
             genned.addAll(codegen.parsed);
         }
 
+        instructions.add("return");
+        genned.add(new HashMap<>());
+
         return new CodeSegment(instructions, genned);
+    }
+    public boolean hasOperator() {
+        for (AST child : children) {
+            if (child instanceof OperatorAST) {
+                // need to process in reverse order
+                return true;
+            }
+            if (child.hasOperator()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

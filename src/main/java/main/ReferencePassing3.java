@@ -296,6 +296,7 @@ public class ReferencePassing3 extends Thread {
                         other.incoming.get(inbox).add(data);
                         data = null;
                         reading[inbox][threadNum] = fallbackMode;
+                        count++;
                         break;
 //                System.out.println("Returning reference to other thread");
 

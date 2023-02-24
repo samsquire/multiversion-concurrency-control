@@ -40,4 +40,17 @@ public class ProgramAST extends AST {
     public void add(AST astNode) {
         this.children.add(astNode);
     }
+
+    public boolean hasOperator() {
+        for (AST child : children) {
+            if (child instanceof OperatorAST) {
+                // need to process in reverse order
+                return true;
+            }
+            if (child.hasOperator()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

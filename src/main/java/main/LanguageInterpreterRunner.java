@@ -26,7 +26,7 @@ public class LanguageInterpreterRunner {
     private void run() {
         try {
             long start = System.currentTimeMillis();
-            URL res = getClass().getClassLoader().getResource("forloopexpression.pint");
+            URL res = getClass().getClassLoader().getResource("function.pint");
             File file = Paths.get(res.toURI()).toFile();
             String absolutePath = file.getAbsolutePath();
             Scanner reader = new Scanner(file);
@@ -74,6 +74,10 @@ public class LanguageInterpreterRunner {
             ArrayList<ArrayList<LanguageInterpreter.AlternativeMessage>> messages = new ArrayList<>();
             int threadNum = 0;
             int totalSize = threadCount;
+            Map<String, String> stringvariables = new HashMap<>();
+            Map<String, Integer> intvariables = new HashMap<>();
+            stringvariables.put("account", "1");
+            intvariables.put("amount", 100);
             for (int i = 0; i < threadCount; i++) {
                 System.out.println(String.format("Creating interpreter thread %d", i));
 
@@ -93,7 +97,9 @@ public class LanguageInterpreterRunner {
                         programString1,
                         programStart,
                         variables,
-                        labels));
+                        labels,
+                        stringvariables,
+                        intvariables));
             }
             for (LanguageInterpreter interpreter : interpreters) {
                 interpreter.setThreads(new ArrayList<>(interpreters));

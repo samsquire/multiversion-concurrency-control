@@ -30,4 +30,17 @@ public class ForLoopAST extends AST {
         }
         return sb.toString();
     }
+
+    public boolean hasOperator() {
+        for (AST child : children) {
+            if (child instanceof OperatorAST) {
+                // need to process in reverse order
+                return true;
+            }
+            if (child.hasOperator()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

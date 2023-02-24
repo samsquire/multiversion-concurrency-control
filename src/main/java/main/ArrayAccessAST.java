@@ -35,19 +35,26 @@ public class ArrayAccessAST extends AST {
         ExpressionAST ast = (ExpressionAST) this.children.get(0);
         String token = "INVALID";
         AST name = ast.children.get(0);
+        boolean variable = false;
         if (name.getClass() == LiteralStringAST.class) {
-
+            variable = false;
             token = ((LiteralStringAST) name).token;
         }
         if (name.getClass() == IdentifierAST.class) {
             token = ((IdentifierAST) name).token;
+            variable = true;
         }
-        instructions.add("push");
-        instructions.add("loadhash");
+        instructions.add("pushstring");
+
         HashMap<String, String> addParsed = new HashMap<>();
-        addParsed.put("variable", token);
+        addParsed.put("token", token);
         addParsed.put("type", "string");
         genned.add(addParsed);
+        if (variable) {
+            instructions.add("loadhashvar");
+        } else {
+            instructions.add("loadhash");
+        }
         HashMap<String, String> getStackParsed = new HashMap<>();
         addParsed.put("variable", token);
         genned.add(getStackParsed);
@@ -56,5 +63,19 @@ public class ArrayAccessAST extends AST {
         pushstring.put("token", token);
         genned.add(pushstring);
         return new CodeSegment(instructions, genned);
+    }
+
+    @Override
+    public boolean hasOperator() {
+        for (AST child : children) {
+            if (child instanceof OperatorAST) {
+                // need to process in reverse order
+                return true;
+            }
+            if (child.hasOperator()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

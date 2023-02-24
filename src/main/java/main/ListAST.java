@@ -14,4 +14,17 @@ public class ListAST extends AST {
     public void add(AST astNode) {
         this.items.add(astNode);
     }
+
+    public boolean hasOperator() {
+        for (AST child : items) {
+            if (child instanceof OperatorAST) {
+                // need to process in reverse order
+                return true;
+            }
+            if (child.hasOperator()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

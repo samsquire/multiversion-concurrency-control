@@ -1,6 +1,7 @@
 package main;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -22,12 +23,45 @@ public class ExpressionAST extends AST {
         List<String> instructions = new ArrayList<>();
         List<Map<String, String>> genned = new ArrayList<>();
         System.out.println(children);
-        for (AST ast : children) {
+        ArrayList<AST> list = new ArrayList<>(children);
+        Collections.reverse(list);
+        for (AST ast : list) {
             CodeSegment codegen = ast.codegen();
             instructions.addAll(codegen.instructions);
             genned.addAll(codegen.parsed);
         }
         return new CodeSegment(instructions, genned);
+    }
+
+    public CodeSegment genparameter() {
+        List<String> instructions = new ArrayList<>();
+        List<Map<String, String>> genned = new ArrayList<>();
+        ArrayList<AST> list = new ArrayList<>(children);
+        for (AST ast : list) {
+            if (ast.getClass() == ParameterListAST.class) {
+                continue;
+            }
+            if (ast.getClass() == EndOfParameterListAST.class) {
+                continue;
+            }
+            CodeSegment codegen = ast.genparameter();
+            instructions.addAll(codegen.instructions);
+            genned.addAll(codegen.parsed);
+        }
+        return new CodeSegment(instructions, genned);
+    }
+
+    public boolean hasOperator() {
+        for (AST child : children) {
+            if (child instanceof OperatorAST) {
+                // need to process in reverse order
+                return true;
+            }
+            if (child.hasOperator()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String toString() {

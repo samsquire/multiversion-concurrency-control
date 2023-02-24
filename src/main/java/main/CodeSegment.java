@@ -13,8 +13,12 @@ public class CodeSegment {
 
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("CODE SEGMENT INSTRUCTIONS");
-        sb.append(this.instructions);
+        sb.append("CODE SEGMENT INSTRUCTIONS\n");
+        for (String instruction : this.instructions) {
+            sb.append(instruction);
+            sb.append("\n");
+        }
+        sb.append("\n");
         sb.append("CODE SEGMENT PARSED");
         sb.append(this.parsed);
         return sb.toString();

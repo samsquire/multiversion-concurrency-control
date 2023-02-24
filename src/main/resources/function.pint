@@ -1,0 +1,14 @@
+threads 1
+<start>
+set struct accounts = {
+    '1' = {
+        'balance' = 700;
+        'details' = {
+            'name' = 'Samuel Squire';
+        }
+    };
+};
+function deposit(string account, int amount) {
+    accounts[account]['balance'] += amount;
+}
+deposit('1', 100);

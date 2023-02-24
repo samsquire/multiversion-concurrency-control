@@ -4,20 +4,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-public class ShardedBank2 extends Thread {
+public class ShardedNonRandomBank2 extends Thread {
     private final Account[] accounts;
     private int threadId;
     private final String type;
     private volatile boolean running = true;
     private int threadCount;
-    private List<ShardedBank2> threads;
+    private List<ShardedNonRandomBank2> threads;
     private int transactionCount = 0;
 
-    public ShardedBank2(List<ShardedBank2> threads,
-                        int threadId,
-                        String type,
-                        Account[] accounts,
-                        int threadCount) {
+    public ShardedNonRandomBank2(List<ShardedNonRandomBank2> threads,
+                                 int threadId,
+                                 String type,
+                                 Account[] accounts,
+                                 int threadCount) {
         this.threads = threads;
         this.threadId = threadId;
         this.type = type;
@@ -27,19 +27,15 @@ public class ShardedBank2 extends Thread {
 
     public void run() {
         Random rng = new Random();
+        int sourceAccount = 0;
+        int destinationAccount = 0;
         int size = accounts.length;
 
             while (running) {
-                int sourceAccount = 0;
-                int destinationAccount = 0;
-                while (sourceAccount == destinationAccount) {
-                    sourceAccount = rng.nextInt(size);
-                    destinationAccount = rng.nextInt(size);
-                    if (sourceAccount == destinationAccount) {
-                        destinationAccount = (sourceAccount + 1) % size;
-                        break;
-                    }
-                }
+                ++sourceAccount;
+                destinationAccount++;
+                sourceAccount = sourceAccount % accounts.length;
+                destinationAccount = destinationAccount % accounts.length;
 //                System.out.println(String.format("%d -> %d", sourceAccount, destinationAccount));
                 int amount = 0;
                 Account account = accounts[sourceAccount];
@@ -64,14 +60,14 @@ public class ShardedBank2 extends Thread {
         int accountsSize = 80000;
         System.out.println(String.format("Account count: %d", accountsSize));
 
-        List<ShardedBank2> threads = new ArrayList<>(threadsCount);
+        List<ShardedNonRandomBank2> threads = new ArrayList<>(threadsCount);
 
         for (int i = 0; i < threadsCount; i++) {
             Account[] accountShard2 = new Account[accountsSize];
             for (int j = 0; j < accountsSize; j++) {
                 accountShard2[j] = new Account(1 + rng.nextInt(100000), 0);
             }
-            ShardedBank2 shardedTotalOrder = new ShardedBank2(threads, i, "transacter",
+            ShardedNonRandomBank2 shardedTotalOrder = new ShardedNonRandomBank2(threads, i, "transacter",
                     accountShard2, threadsCount);
             threads.add(shardedTotalOrder);
         }

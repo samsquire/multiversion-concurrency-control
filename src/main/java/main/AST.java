@@ -49,4 +49,13 @@ public abstract class AST {
         System.out.println(String.format("Setting type to %s", originalType));
         this.type = originalType;
     }
+
+
+    protected boolean hasOperator() {
+        return false;
+    }
+
+    protected CodeSegment genparameter() {
+        return null;
+    }
 }
