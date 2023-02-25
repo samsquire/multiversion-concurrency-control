@@ -28,18 +28,18 @@ public class ShardedNonRandomBank2 extends Thread {
     public void run() {
         Random rng = new Random();
         int sourceAccount = 0;
-        int destinationAccount = 0;
+        int destinationAccount = 1;
         int size = accounts.length;
 
             while (running) {
-                ++sourceAccount;
+                sourceAccount++;
                 destinationAccount++;
                 sourceAccount = sourceAccount % accounts.length;
                 destinationAccount = destinationAccount % accounts.length;
 //                System.out.println(String.format("%d -> %d", sourceAccount, destinationAccount));
                 int amount = 0;
                 Account account = accounts[sourceAccount];
-                if (account.balance >= 1) {
+                if (account.balance >= 75) {
                     amount = 75; /* rng.nextInt(account.balance); */
                 } else {
                     continue;
@@ -57,7 +57,7 @@ public class ShardedNonRandomBank2 extends Thread {
         Random rng = new Random();
         int threadsCount = 12;
         System.out.println(String.format("Thread count: %d", threadsCount));
-        int accountsSize = 80000;
+        int accountsSize = 120000;
         System.out.println(String.format("Account count: %d", accountsSize));
 
         List<ShardedNonRandomBank2> threads = new ArrayList<>(threadsCount);
