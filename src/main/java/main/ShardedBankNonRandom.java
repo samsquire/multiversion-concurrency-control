@@ -8,7 +8,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class ShardedBankNonRandom extends Thread {
     private final DoublyLinkedList data;
     private final ArrayList<Integer> data2;
-    private final Account[] accounts;
+    private volatile int[] accounts;
     private final ShardedBankNonRandom seer;
     private int threadId;
     private final String type;
@@ -33,7 +33,7 @@ public class ShardedBankNonRandom extends Thread {
                                 String type,
                                 long size,
                                 int multiple,
-                                Account[] accounts,
+                                int[] accounts,
                                 ShardedBankNonRandom seer,
                                 int threadCount) {
         this.threads = threads;
@@ -68,8 +68,8 @@ public class ShardedBankNonRandom extends Thread {
 
 
                         transactionsApplied++;
-                        accounts[transaction.sourceAccount].balance -= transaction.amount;
-                        accounts[transaction.destinationAccount].balance += transaction.amount;
+                        accounts[transaction.sourceAccount] -= transaction.amount;
+                        accounts[transaction.destinationAccount] += transaction.amount;
                     } else {
                         System.out.println("Failed message");
                     }
@@ -78,10 +78,10 @@ public class ShardedBankNonRandom extends Thread {
 
 
                 int amount = 0;
-                Account source = accounts[sourceAccount];
-                if (source.balance > 1) {
+                int source = accounts[sourceAccount];
+                if (source > 1) {
 
-                    amount = rng.nextInt(source.balance);
+                    amount = 75;
                 } else {
                     amount = 75;
 
@@ -89,12 +89,11 @@ public class ShardedBankNonRandom extends Thread {
                 transactionsGenerated++;
                 // System.out.println(amount);
 
-                if (source.balance >= amount) {
+                if (source >= amount) {
 
                     transactionsApplied++;
-                    source.balance -= amount;
-                    Account destination = accounts[destinationAccount];
-                    destination.balance += amount;
+                    accounts[sourceAccount] -= amount;
+                    accounts[destinationAccount] += amount;
                 } else {
 //                    System.out.println("not enough money in account");
 //                     too much money to be spent
@@ -124,7 +123,7 @@ public class ShardedBankNonRandom extends Thread {
                     for (Transaction item : batch) {
                         for (int i = 0; i < threadCount; i++) {
 
-                            if (threads.get(i).accounts[item.sourceAccount].balance >= item.amount) {
+                            if (threads.get(i).accounts[item.sourceAccount] >= item.amount) {
 
                                 threads.get(i).submit(item);
                                 found = true;
@@ -160,16 +159,16 @@ public class ShardedBankNonRandom extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         Random rng = new Random();
-        int threadCount = 12;
-        int accountsSize = 120000;
+        int threadCount = 11;
+        int accountsSize = 800000;
 
         long size = Long.MAX_VALUE / threadCount;
 
 
         List<ShardedBankNonRandom> threads = new ArrayList<>(threadCount + 1);
-        Account[] accountShard = new Account[accountsSize];
+        int[] accountShard = new int[accountsSize];
         for (int j = 0; j < accountsSize; j++) {
-            accountShard[j] = new Account(0, threadCount);
+            accountShard[j] = 0;
         }
         ShardedBankNonRandom seer = new ShardedBankNonRandom(threads, 0, "seer", size,
                 0,
@@ -177,11 +176,11 @@ public class ShardedBankNonRandom extends Thread {
         threads.add(seer);
 
         for (int i = 0; i < threadCount; i++) {
-            Account[] accountShard2 = new Account[accountsSize];
+            int[] accountShard2 = new int[accountsSize];
 
             for (int j = 0; j < accountsSize; j++) {
-                int balance = 75 + rng.nextInt(5000);
-                accountShard2[j] = new Account(balance, 0);
+                int balance = 75 * 4;
+                accountShard2[j] = balance;
             }
 
             ShardedBankNonRandom shardedTotalOrder = new ShardedBankNonRandom(threads, i, "transacter", size,
@@ -193,7 +192,7 @@ public class ShardedBankNonRandom extends Thread {
         for (int i = 0; i < accountsSize; i++) {
 
             for (int x = 0; x < threadCount; x++) {
-                total += threads.get(x).accounts[i].balance;
+                total += threads.get(x).accounts[i];
             }
 
         }
@@ -224,7 +223,7 @@ public class ShardedBankNonRandom extends Thread {
         for (int i = 0; i < accountsSize; i++) {
 
             for (int x = 0; x < threadCount; x++) {
-                total2 += threads.get(x).accounts[i].balance;
+                total2 += threads.get(x).accounts[i];
             }
 
         }

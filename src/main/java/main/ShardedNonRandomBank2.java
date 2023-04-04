@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Random;
 
 public class ShardedNonRandomBank2 extends Thread {
-    private final Account[] accounts;
+    private final long[] accounts;
     private int threadId;
     private final String type;
     private volatile boolean running = true;
@@ -16,7 +16,7 @@ public class ShardedNonRandomBank2 extends Thread {
     public ShardedNonRandomBank2(List<ShardedNonRandomBank2> threads,
                                  int threadId,
                                  String type,
-                                 Account[] accounts,
+                                 long[] accounts,
                                  int threadCount) {
         this.threads = threads;
         this.threadId = threadId;
@@ -31,26 +31,26 @@ public class ShardedNonRandomBank2 extends Thread {
         int destinationAccount = 1;
         int size = accounts.length;
 
-            while (running) {
-                sourceAccount++;
-                destinationAccount++;
-                sourceAccount = sourceAccount % accounts.length;
-                destinationAccount = destinationAccount % accounts.length;
+        while (running) {
+
 //                System.out.println(String.format("%d -> %d", sourceAccount, destinationAccount));
-                int amount = 0;
-                Account account = accounts[sourceAccount];
-                if (account.balance >= 75) {
-                    amount = 75; /* rng.nextInt(account.balance); */
-                } else {
-                    continue;
-                }
-
-
-
-                    transactionCount++;
-                    account.balance -= amount;
-                    accounts[destinationAccount].balance += amount;
+            long amount = 0;
+            long account = accounts[sourceAccount];
+            if (account >= 75) {
+                amount = 75; /* rng.nextInt(account.balance); */
+            } else {
+                continue;
             }
+
+
+            transactionCount++;
+            accounts[sourceAccount] -= amount;
+            accounts[destinationAccount] += amount;
+            sourceAccount++;
+            destinationAccount++;
+            sourceAccount = sourceAccount % accounts.length;
+            destinationAccount = destinationAccount % accounts.length;
+        }
     }
 
     public static void main(String[] args) throws InterruptedException {
@@ -63,13 +63,20 @@ public class ShardedNonRandomBank2 extends Thread {
         List<ShardedNonRandomBank2> threads = new ArrayList<>(threadsCount);
 
         for (int i = 0; i < threadsCount; i++) {
-            Account[] accountShard2 = new Account[accountsSize];
+            long[] accountShard2 = new long[accountsSize];
             for (int j = 0; j < accountsSize; j++) {
-                accountShard2[j] = new Account(1 + rng.nextInt(100000), 0);
+                accountShard2[j] = 1 + rng.nextInt(100000);
             }
             ShardedNonRandomBank2 shardedTotalOrder = new ShardedNonRandomBank2(threads, i, "transacter",
                     accountShard2, threadsCount);
             threads.add(shardedTotalOrder);
+        }
+        long startBalance = 0;
+        for (int i = 0; i < threadsCount; i++) {
+
+            for (int x = 0 ; x < threads.get(i).accounts.length; x++) {
+                startBalance += threads.get(i).accounts[x];
+            }
         }
         System.out.println("Created test data");
         for (int i = 0; i < threads.size(); i++) {
@@ -87,6 +94,14 @@ public class ShardedNonRandomBank2 extends Thread {
         }
 
         System.out.println("Finished");
+        System.out.println("Verifying");
+        long endBalance = 0;
+        for (int i = 0; i < threadsCount; i++) {
+
+            for (int x = 0 ; x < threads.get(i).accounts.length; x++) {
+                endBalance += threads.get(i).accounts[x];
+            }
+        }
         long end = System.currentTimeMillis();
 
         long totalRequests = 0;
@@ -102,6 +117,9 @@ public class ShardedNonRandomBank2 extends Thread {
         double l = totalRequests / seconds;
         System.out.println(String.format("%f requests per second", l));
         System.out.println(String.format("Time taken: %f", seconds));
+        System.out.println(String.format("Total money beginning: %d", startBalance));
+        System.out.println(String.format("Total money end: %d", endBalance));
+        assert (startBalance == endBalance);
     }
 
     private static class Account {

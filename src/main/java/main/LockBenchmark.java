@@ -1,25 +1,35 @@
 package main;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class LockBenchmark extends Thread {
+    private final HashMap<LockBenchmark, Long> map;
     private LockBenchmark main;
+
     private final int id;
+    private volatile boolean buffer;
     private final Lock writeLock;
-    private boolean running = true;
-    private Integer counter = 0;
+    private volatile boolean running = true;
+    private long left = 0;
+    private long right = 0;
     private DoublyLinkedList data;
     private String mode;
+    private List<LockBenchmark> threads;
+    private long counter;
+    private int lefts;
+    private int rights;
 
-    public LockBenchmark(String mode, LockBenchmark main, int id, Lock writeLock) {
+    public LockBenchmark(String mode, int id, Lock writeLock) {
         this.main = main;
         this.id = id;
         this.writeLock = writeLock;
         this.mode = mode;
+        this.map = new HashMap<LockBenchmark, Long>();
         if (main == null) {
             this.data = new DoublyLinkedList(0, System.currentTimeMillis());
             this.main = this;
@@ -28,56 +38,89 @@ public class LockBenchmark extends Thread {
     }
 
     public void run() {
+        if (mode.equals("reader")) {
+            while (running) {
+                long total = 0;
+                for (LockBenchmark thread : threads) {
+                    if (thread.buffer) {
+                        long left1 = thread.left;
+                        total += left1;
+                        thread.right = thread.left;
+                        map.put(thread, left1);
+                        thread.buffer = !thread.buffer;
+                    } else {
+                        long right1 = thread.right;
+                        total += right1;
+                        thread.left = right1;
+                        map.put(thread, right1);
+                        thread.buffer = !thread.buffer;
+
+                    }
+                }
+                counter = total;
+            }
+        }
         if (mode.equals("counter")) {
             while (running) {
-                writeLock.lock();
-                counter += 10;
-                writeLock.unlock();
-            }
-        } else if (mode.equals("linkedlist")) {
-            while (running) {
-                writeLock.lock();
-                int nextValue = 0;
-                if (main.data.tail == null) {
-                    nextValue = Integer.MIN_VALUE;
+                if (buffer) {
+                    left++;
                 } else {
-                    nextValue = main.data.tail.value;
+                    right++;
                 }
-                main.counter++;
-                main.data.insert(nextValue + 1);
-                writeLock.unlock();
+
+            }
+        } else if (mode.equals("nolock")) {
+            while (running) {
+                counter += 1;
             }
         }
     }
 
     public static void main(String[] args) throws InterruptedException {
-        ReadWriteLock rwlock = new ReentrantReadWriteLock();
         int threadCount = 11;
         List<LockBenchmark> threads = new ArrayList<>();
-        LockBenchmark main = new LockBenchmark("counter", null, 0, rwlock.writeLock());
-        threads.add(main);
+
         for (int i = 1 ; i < threadCount; i++) {
-            LockBenchmark lockBenchmark = new LockBenchmark("counter", main, i, rwlock.writeLock());
+            ReadWriteLock rwlock = new ReentrantReadWriteLock();
+
+            LockBenchmark lockBenchmark = new LockBenchmark("counter", i, rwlock.writeLock());
             threads.add(lockBenchmark);
         }
+        ReadWriteLock rwlock = new ReentrantReadWriteLock();
+
+        LockBenchmark reader = new LockBenchmark("reader", 0, rwlock.writeLock());
+        reader.setThreads(threads);
+
+        reader.start();
         long start = System.currentTimeMillis();
         for (LockBenchmark loopBenchmark : threads) {
             loopBenchmark.start();
         }
-        Thread.sleep(5000);
+        Thread.sleep(10000);
         for (LockBenchmark loopBenchmark : threads) {
             loopBenchmark.running = false;
         }
+        reader.running = false;
         for (LockBenchmark loopBenchmark : threads) {
             loopBenchmark.join();
         }
+        Thread.sleep(100);
+        reader.join();
         long end = System.currentTimeMillis();
         double seconds = (end - start) / 1000.0;
-        int totalRequests = threads.get(0).counter;
+        long totalRequests = reader.counter;
+
+        for (LockBenchmark thread : threads) {
+            assert thread.left == reader.map.get(thread) || thread.right == reader.map.get(thread);
+        }
 
         System.out.println(String.format("%d total requests", totalRequests));
         double l = totalRequests / seconds;
         System.out.println(String.format("%f requests per second", l));
         System.out.println(String.format("Time taken: %f", seconds));
+    }
+
+    private void setThreads(List<LockBenchmark> threads) {
+        this.threads = threads;
     }
 }
