@@ -237,7 +237,7 @@ public class BankServer extends Thread {
     public static void main(String[] args) throws InterruptedException {
         // Parse command line arguments and
         // create a new timeserver (no arguments yet)
-        int threadCount = 12;
+        int threadCount = 4;
         int accountsSize = 120000;
         List<BankServer> threads = new ArrayList<>();
         BankServer seerThread = new BankServer(-1, threadCount, false, "seer", new long[120000], null);
@@ -271,7 +271,7 @@ public class BankServer extends Thread {
             }
             nbt.setThreads(threads);
         }
-        int interval = 40;
+        int interval = 60;
         Thread.sleep(interval * 1000);
         for (int i = 0 ; i < serverCount; i++) {
             serverThreads.get(i).running = false;
@@ -300,7 +300,7 @@ public class BankServer extends Thread {
             transactions += threads.get(x).transactionsApplied;
         }
         long queued = 0;
-        for (int i = 0 ; i < threadCount; i++) {
+        for (int i = 0 ; i < serverCount; i++) {
             queued += serverThreads.get(i).transactionsQueued;
 
         }

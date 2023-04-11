@@ -200,9 +200,9 @@ public class LockBenchmarkTree extends Thread {
                         right[i].count++;
                     }
 //                    if (globalBuffer) {
-//                           // System.out.println(reader.threadDataRight.get(id)[0].count);
+//                            System.out.println(reader.threadDataRight.get(id)[0].count);
 //                    } else {
-//                           // System.out.println(reader.threadDataLeft.get(id)[0].count);
+//                            System.out.println(reader.threadDataLeft.get(id)[0].count);
 //                    }
                     finishedReading = true;
                     int newModCount = 0;
