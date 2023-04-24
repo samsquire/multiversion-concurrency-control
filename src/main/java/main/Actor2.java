@@ -88,9 +88,9 @@ class Actor2 extends Thread {
         ArrayList<Actor2> threads = new ArrayList<>();
         ArrayList<Actor2> allThreads = new ArrayList<>();
         int mailboxes = 10;
-        int messageRate = 10;
-        int numSubthreads = 10;
-        int threadCount = 20;
+        int messageRate = 1000;
+        int numSubthreads = 3;
+        int threadCount = 6;
         System.out.println("Creating test data...");
 
 
@@ -282,7 +282,7 @@ class Actor2 extends Thread {
                         if (subfail) {
                             break; // stop looking at this mailbox
                         }
-                        for (int j = threadNum + 1; j < main.threadsSize; j++) {
+                        for (int j = main.threadNum + 1; j < main.threadsSize; j++) {
                             if (thisThread.reading[inbox][j] == targetMode) {
                                 subfail = true;
                                 thisThread.reading[inbox][main.threadNum] = fallbackMode;
@@ -431,8 +431,9 @@ class Actor2 extends Thread {
                 assert main.reading[inbox][main.threadNum] == targetMode;
                 success = true;
 
-                Slice slice = main.inqueue.get(inbox).get(0);
-                if (slice != null) {
+                ArrayList<Slice> sliceList = main.inqueue.get(inbox);
+                if (sliceList != null && sliceList.size() > 0 && sliceList.get(0) != null) {
+                    Slice slice = sliceList.get(0);
                     if (slice.popped() == 0) {
                         main.inqueue.get(inbox).remove(0);
                     }
