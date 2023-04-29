@@ -207,7 +207,6 @@ public class LockBenchmarkTreeUnvisible extends Thread {
         System.out.println(String.format("%d total requests", totalRequests));
         double l = totalRequests / seconds;
         System.out.println(String.format("%f requests per second", l));
-        System.out.println(String.format("%d requests per second 2", threads.get(0).counter));
         System.out.println(String.format("Time taken: %f", seconds));
     }
 

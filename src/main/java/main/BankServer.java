@@ -105,7 +105,7 @@ public class BankServer extends Thread {
                         Transaction item = new Transaction(sourceAccount, destinationAccount, amount);
 //                    System.out.println(item);
                         buffer.add(item);
-                        if (buffer.size() >= 100) {
+                        if (buffer.size() >= 1000) {
                             threads.get(pickThread()).submit(buffer);
                             transactionsQueued += buffer.size();
                             buffer = new ArrayList<>();
@@ -260,7 +260,7 @@ public class BankServer extends Thread {
             threads.get(i).start();
         }
         List<BankServer> serverThreads = new ArrayList<>();
-        int serverCount = 12;
+        int serverCount = 10;
         for (int i = 0 ; i < serverCount; i++) {
             BankServer nbt = new BankServer(i, threadCount, true, "server", new long[1], seerThread);
             serverThreads.add(nbt);

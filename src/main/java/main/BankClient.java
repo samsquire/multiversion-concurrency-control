@@ -17,7 +17,7 @@ public class BankClient extends Thread {
 
     public static void main(String[] args) throws IOException, InterruptedException {
         List<BankClient> threads = new ArrayList<>();
-        int threadCount = 12;
+        int threadCount = 10;
         for (int i = 0 ; i < threadCount; i++) {
             threads.add(new BankClient(i));
         }
@@ -34,7 +34,7 @@ public class BankClient extends Thread {
     }
 
     public void run() {
-        InetSocketAddress addr = new InetSocketAddress("192.168.1.48", 23 + id);
+        InetSocketAddress addr = new InetSocketAddress("192.168.43.72", 23 + id);
 
         //  selectable channel for stream-oriented connecting sockets
         SocketChannel socketChannel = null;
