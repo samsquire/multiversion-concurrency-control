@@ -1,17 +1,15 @@
 package main;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.SplittableRandom;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class LockBenchmarkMultipleSeersSnapshot extends Thread {
-    private final HashMap<LockBenchmarkMultipleSeersSnapshot, Long> map;
+public class LockBenchmarkMultipleSeersBank extends Thread {
+    private final HashMap<LockBenchmarkMultipleSeersBank, Long> map;
     private final List<TreeObject> treeObjects;
-    private LockBenchmarkMultipleSeersSnapshot main;
+    private final long expectedMoney;
+    private LockBenchmarkMultipleSeersBank main;
 
     private final int id;
     private volatile boolean buffer = false;
@@ -23,7 +21,7 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
     private volatile TreeObject[] right;
     private DoublyLinkedList data;
     private String mode;
-    private List<LockBenchmarkMultipleSeersSnapshot> threads;
+    private List<LockBenchmarkMultipleSeersBank> threads;
     private long counter;
     private int lefts;
     private int rights;
@@ -36,22 +34,24 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
     private List<List<HashMap<TreeObject, TreeObject>>> threadEquivalents;
     private ArrayList<ArrayList<TreeObject[]>> snapshots;
     private int seerId;
-    private LockBenchmarkMultipleSeersSnapshot reader;
+    private LockBenchmarkMultipleSeersBank reader;
     private volatile boolean changed;
+    private long transactionCount;
 
-    public LockBenchmarkMultipleSeersSnapshot(String mode,
-                                              Overseer overseer, int seerId, int id,
-                                              Lock writeLock,
-                                              List<TreeObject> treeObjects,
-                                              LockBenchmarkMultipleSeersSnapshot reader) {
+    public LockBenchmarkMultipleSeersBank(long expectedMoney, String mode,
+                                          Overseer overseer, int seerId, int id,
+                                          Lock writeLock,
+                                          List<TreeObject> treeObjects,
+                                          LockBenchmarkMultipleSeersBank reader) {
         this.overseer = overseer;
+        this.expectedMoney = expectedMoney;
         this.seerId = seerId;
         this.reader = reader;
         this.main = main;
         this.id = id;
         this.writeLock = writeLock;
         this.mode = mode;
-        this.map = new HashMap<LockBenchmarkMultipleSeersSnapshot, Long>();
+        this.map = new HashMap<LockBenchmarkMultipleSeersBank, Long>();
         if (main == null) {
             this.data = new DoublyLinkedList(0, System.currentTimeMillis());
             this.main = this;
@@ -73,6 +73,7 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
                 equivalent.put(mineNew, treeObjects.get(i));
                 reverse.put(treeObjects.get(i), mineNew);
                 side[i] = mineNew;
+                mineNew.count = treeObjects.get(i).count;
             }
             for (TreeObject treeObject : side) {
                 treeObject.left = reverse.get(equivalent.get(treeObject).left);
@@ -95,7 +96,7 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
                 ArrayList<HashMap<TreeObject, TreeObject>> thisThreadEquivalents =
                         new ArrayList<>();
 
-                for (LockBenchmarkMultipleSeersSnapshot tree : threads) {
+                for (LockBenchmarkMultipleSeersBank tree : threads) {
                     HashMap<TreeObject, TreeObject> equivalent = new HashMap<>();
                     HashMap<TreeObject, TreeObject> reverse = new HashMap<>();
                     thisThreadEquivalents.add(equivalent);
@@ -105,6 +106,8 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
                         equivalent.put(mineNew, treeObjects.get(i));
                         reverse.put(treeObjects.get(i), mineNew);
                         objects[i] = mineNew;
+                        mineNew.count = treeObjects.get(i).count;
+
                     }
 
                     for (TreeObject treeObject : objects) {
@@ -120,14 +123,14 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
             while (running) {
                 long total = 0;
 
-                for (LockBenchmarkMultipleSeersSnapshot thread : threads) {
+                for (LockBenchmarkMultipleSeersBank thread : threads) {
                     if (thread.buffer) {
                         for (TreeObject treeObject : thread.right) {
-                            treeObject.count = 0;
+                             // treeObject.count = 0;
                         }
                     } else {
                         for (TreeObject treeObject : thread.left) {
-                            treeObject.count = 0;
+                             // treeObject.count = 0;
                         }
                     }
 
@@ -136,10 +139,11 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
                         total += thread.counter;
                         merge(true, thread, left1);
                         mergePerThread(thread, left1);
-
+                        //thread.writeLock.lock();
                         visible(thread);
-                        thread.buffer = !thread.buffer;
 
+                        thread.buffer = !thread.buffer;
+                        //thread.writeLock.unlock();
 
                     } else {
                         TreeObject[] right1 = thread.right;
@@ -147,13 +151,22 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
                         merge(false, thread, right1);
                         mergePerThread(thread, right1);
 
-
+                        //thread.writeLock.lock();
                         visible(thread);
-                        thread.buffer = !thread.buffer;
 
+                        thread.buffer = !thread.buffer;
+                        //thread.writeLock.unlock();
 
                     }
+
                 }
+                writeLock.lock();
+                long newMoney = 0;
+                for (TreeObject treeObject : treeObjects) {
+                    newMoney += treeObject.count;
+                }
+                assert newMoney == expectedMoney : String.format("%d %d", newMoney, expectedMoney);
+                writeLock.unlock();
 
 
                 counter = total;
@@ -165,7 +178,7 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
         SplittableRandom random = new SplittableRandom();
         if (mode.equals("counter")) {
             int size = left.length;
-            int i = 0;
+            int source = 0;
             while (running) {
                 long modCount = 0;
                 boolean thisGlobal = globalBuffer;
@@ -178,10 +191,25 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
                         modCount += treeObject.count;
                     }
                 }
+
+                writeLock.lock();
                 while (this.buffer) {
-                    i = random.nextInt(size);
-                    right[i].count++;
+
+                    source = random.nextInt(size);
+                    int destination = random.nextInt(size);
+                    int use = 0;
+                    if (globalBuffer) {
+                        use = 1;
+                    }
+                    if (right[source].count > 0) {
+                        long amount = random.nextLong(right[source].count);
+                        right[source].count -= amount;
+                        right[destination].count += amount;
+                    }
+                    transactionCount++;
                 }
+                writeLock.unlock();
+
                 long newModCount = 0;
                 if (thisGlobal) {
                     for (TreeObject treeObject : reader.snapshots.get(1).get(id)) {
@@ -197,11 +225,25 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
                     assert newModCount == modCount : String.format("%d %d", newModCount, modCount);
 //                    System.out.println(String.format("%d %d", modCount, newModCount));
                 }
-
+                writeLock.lock();
                 while (!this.buffer) {
-                    i = random.nextInt(size);
-                    left[i].count++;
+                    source = random.nextInt(size);
+                    int destination = random.nextInt(size);
+                    int use = 0;
+                    if (globalBuffer) {
+                        use = 1;
+                    }
+
+                    if (left[source].count > 0) {
+
+                        long amount = random.nextLong(left[source].count);
+                        left[source].count -= amount;
+                        left[destination].count += amount;
+                    }
+                    transactionCount++;
                 }
+                writeLock.unlock();
+
                 if (id == 6 && seerId == 0) {
                     if (thisGlobal) {
                          System.out.println(reader.snapshots.get(0).get(id)[0].count);
@@ -225,7 +267,9 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
                 for (int x = 0; x < treeObjects.size(); x++) {
                     reader.snapshots.get(to).get(id)[x].count = reader.snapshots.get(from).get(id)[x].count;
                 }
+
                 globalBuffer = !globalBuffer;
+
                 writeLock.unlock();
             }
             System.out.println("Finished counter");
@@ -236,7 +280,7 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
         }
     }
 
-    private void mergePerThread(LockBenchmarkMultipleSeersSnapshot targetThread,
+    private void mergePerThread(LockBenchmarkMultipleSeersBank targetThread,
                                 TreeObject[] objects) {
 
         targetThread.writeLock.lock();
@@ -244,11 +288,12 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
 
         if (targetThread.globalBuffer) {
             for (int x = 0; x < treeObjects.size(); x++) {
-                 snapshots.get(0).get(targetThread.id)[x].count += objects[x].count;
+
+                 snapshots.get(0).get(targetThread.id)[x].count = objects[x].count;
             }
         } else {
             for (int x = 0; x < treeObjects.size(); x++) {
-                 snapshots.get(1).get(targetThread.id)[x].count += objects[x].count;
+                 snapshots.get(1).get(targetThread.id)[x].count = objects[x].count;
             }
         }
 
@@ -257,7 +302,7 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
 
     }
 
-    private void visible(LockBenchmarkMultipleSeersSnapshot thread) {
+    private void visible(LockBenchmarkMultipleSeersBank thread) {
         if (thread.buffer) {
             for (int i = 0; i < treeObjects.size(); i++) {
                 thread.right[i].count = thread.left[i].count;
@@ -269,15 +314,17 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
         }
     }
 
-    private void merge(boolean side, LockBenchmarkMultipleSeersSnapshot thread,
+    private void merge(boolean side, LockBenchmarkMultipleSeersBank thread,
                        TreeObject[] left1) {
         for (TreeObject treeObject : left1) {
-            lookup(side, thread, treeObject).count += treeObject.count;
+            lookup(side, thread, treeObject).count = treeObject.count;
+            lookup(side, thread, treeObject).changes += 1;
         }
+
     }
 
     private TreeObject lookup(boolean side,
-                              LockBenchmarkMultipleSeersSnapshot thread,
+                              LockBenchmarkMultipleSeersBank thread,
                               TreeObject treeObject) {
         if (side) {
             return thread.equivalents.get(0).get(treeObject);
@@ -288,7 +335,7 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         int threadCount = 12;
-        int seerThreadsCount = 2;
+        int seerThreadsCount = 1;
         List<TreeObject> treeObjects = new ArrayList<>();
         TreeObject left3 = new TreeObject(1);
         treeObjects.add(left3);
@@ -304,22 +351,31 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
         treeObjects.add(right1);
         TreeObject root = new TreeObject(7, left1, right1);
         treeObjects.add(root);
+        Random random = new Random();
+        for (TreeObject treeObject : treeObjects) {
+            treeObject.count = random.nextInt(5000);
+        }
+        long money = 0;
+        for (TreeObject treeObject : treeObjects) {
+            System.out.println(treeObject.count);
+            money += treeObject.count;
+        }
 
-        List<LockBenchmarkMultipleSeersSnapshot> allThreads = new ArrayList<>();
-        List<LockBenchmarkMultipleSeersSnapshot> seerThreads = new ArrayList<>();
-        List<LockBenchmarkMultipleSeersSnapshot> workerThreads = new ArrayList<>();
+        List<LockBenchmarkMultipleSeersBank> allThreads = new ArrayList<>();
+        List<LockBenchmarkMultipleSeersBank> seerThreads = new ArrayList<>();
+        List<LockBenchmarkMultipleSeersBank> workerThreads = new ArrayList<>();
 
         ReadWriteLock rwlock = new ReentrantReadWriteLock();
         Overseer overseer = new Overseer(0, seerThreadsCount);
         for (int i = 0; i < seerThreadsCount; i++) {
-            List<LockBenchmarkMultipleSeersSnapshot> threads = new ArrayList<>();
-            LockBenchmarkMultipleSeersSnapshot reader = new LockBenchmarkMultipleSeersSnapshot("reader", overseer, i, i, rwlock.writeLock(), treeObjects, null);
+            List<LockBenchmarkMultipleSeersBank> threads = new ArrayList<>();
+            LockBenchmarkMultipleSeersBank reader = new LockBenchmarkMultipleSeersBank(money, "reader", overseer, i, i, rwlock.writeLock(), treeObjects, null);
             allThreads.add(reader);
             seerThreads.add(reader);
             for (int j = 0; j < threadCount; j++) {
                 rwlock = new ReentrantReadWriteLock();
 
-                LockBenchmarkMultipleSeersSnapshot lockBenchmark = new LockBenchmarkMultipleSeersSnapshot("counter", overseer, i, j, rwlock.writeLock(), treeObjects, reader);
+                LockBenchmarkMultipleSeersBank lockBenchmark = new LockBenchmarkMultipleSeersBank(money,"counter", overseer, i, j, rwlock.writeLock(), treeObjects, reader);
                 threads.add(lockBenchmark);
                 allThreads.add(lockBenchmark);
                 workerThreads.add(lockBenchmark);
@@ -330,28 +386,28 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
 
         Thread.sleep(100);
         long start = System.currentTimeMillis();
-        for (LockBenchmarkMultipleSeersSnapshot loopBenchmark : workerThreads) {
+        for (LockBenchmarkMultipleSeersBank loopBenchmark : workerThreads) {
             loopBenchmark.start();
         }
         Thread.sleep(10000);
         System.out.println("test over");
-        for (LockBenchmarkMultipleSeersSnapshot loopBenchmark : allThreads) {
+        for (LockBenchmarkMultipleSeersBank loopBenchmark : allThreads) {
             loopBenchmark.running = false;
             loopBenchmark.buffer = !loopBenchmark.buffer;
 
         }
 
         Thread.sleep(100);
-        for (LockBenchmarkMultipleSeersSnapshot loopBenchmark : allThreads) {
+        for (LockBenchmarkMultipleSeersBank loopBenchmark : allThreads) {
             loopBenchmark.buffer = !loopBenchmark.buffer;
 
         }
         Thread.sleep(100);
-        for (LockBenchmarkMultipleSeersSnapshot loopBenchmark : allThreads) {
+        for (LockBenchmarkMultipleSeersBank loopBenchmark : allThreads) {
             loopBenchmark.buffer = !loopBenchmark.buffer;
         }
 
-        for (LockBenchmarkMultipleSeersSnapshot loopBenchmark : allThreads) {
+        for (LockBenchmarkMultipleSeersBank loopBenchmark : allThreads) {
             loopBenchmark.join();
         }
 
@@ -373,15 +429,33 @@ public class LockBenchmarkMultipleSeersSnapshot extends Thread {
         double l = totalRequests / seconds;
         System.out.println(String.format("%f requests per second", l));
         System.out.println(String.format("Time taken: %f", seconds));
+        System.out.println(String.format("Total money: %d", money));
+        long newMoney = 0;
+        for (TreeObject treeObject : treeObjects) {
+            newMoney += treeObject.count;
+        }
+        long totalChanges = 0;
+        for (TreeObject treeObject : treeObjects) {
+            totalChanges += treeObject.changes;
+        }
+        System.out.println(String.format("New total money: %d", newMoney));
+        long transactionCount = 0;
+        for (LockBenchmarkMultipleSeersBank thread : allThreads) {
+            transactionCount += thread.transactionCount;
+        }
+        System.out.println(String.format("Total changes: %d", totalChanges));
+        System.out.println(String.format("Transaction count: %d", transactionCount));
+        System.out.println(String.format("Transaction count: %f", transactionCount/seconds));
     }
 
-    private void setThreads(List<LockBenchmarkMultipleSeersSnapshot> threads) {
+    private void setThreads(List<LockBenchmarkMultipleSeersBank> threads) {
         this.threads = threads;
     }
 
     private static class TreeObject {
         public volatile long count;
         public volatile long total;
+        public long changes;
 
         private TreeObject left;
         private TreeObject right;
