@@ -132,19 +132,17 @@ public class LockBenchmarkMultipleSeersSnapshotNoLock extends Thread {
                         TreeObject[] left1 = thread.left;
                         total += thread.counter;
                         merge(true, thread, left1);
-                        mergePerThread(thread, left1);
+//                        mergePerThread(thread, left1);
 
                         visible(thread);
                         thread.buffer = !thread.buffer;
-                        thread.globalBuffer = !thread.globalBuffer;
 
 
                     } else {
                         TreeObject[] right1 = thread.right;
                         total += thread.counter;
                         merge(false, thread, right1);
-                        mergePerThread(thread, right1);
-                        thread.globalBuffer = !thread.globalBuffer;
+//                        mergePerThread(thread, right1);
 
 
 
@@ -167,9 +165,7 @@ public class LockBenchmarkMultipleSeersSnapshotNoLock extends Thread {
             int size = left.length;
             int i = 0;
             while (running) {
-
                 long modCount = 0;
-
 
                     boolean thisGlobal = globalBuffer;
                     if (thisGlobal) {
@@ -181,11 +177,13 @@ public class LockBenchmarkMultipleSeersSnapshotNoLock extends Thread {
                             modCount += treeObject.count;
                         }
                     }
+
                     while (this.buffer) {
                         i = random.nextInt(size);
                         right[i].count++;
                     }
                     long newModCount = 0;
+
                     if (thisGlobal) {
                         for (TreeObject treeObject : reader.snapshots.get(1).get(id)) {
                             newModCount += treeObject.count;
@@ -201,6 +199,8 @@ public class LockBenchmarkMultipleSeersSnapshotNoLock extends Thread {
 //                    System.out.println(String.format("%d %d", modCount, newModCount));
                     }
 
+
+
                     while (!this.buffer) {
                         i = random.nextInt(size);
                         left[i].count++;
@@ -211,7 +211,18 @@ public class LockBenchmarkMultipleSeersSnapshotNoLock extends Thread {
 //                            System.out.println(reader.snapshots.get(0).get(id)[0].count);
 //                    }
 
-
+                mergePerThread(this, left);
+                mergePerThread(this, right);
+                globalBuffer = !globalBuffer;
+                if (buffer) {
+                    for (TreeObject treeObject : right) {
+                        treeObject.count = 0;
+                    }
+                } else {
+                    for (TreeObject treeObject : left) {
+                        treeObject.count = 0;
+                    }
+                }
             }
             System.out.println("Finished counter");
         } else if (mode.equals("nolock")) {
@@ -225,19 +236,37 @@ public class LockBenchmarkMultipleSeersSnapshotNoLock extends Thread {
                                 TreeObject[] objects) {
 
         boolean globalBuffer1 = targetThread.globalBuffer;
+
+
+
+        int from = 0;
+        int to = 0;
+
+        if (targetThread.globalBuffer) {
+            from = 0;
+            to = 1;
+        } else {
+            from = 1;
+            to = 0;
+        }
+        for (int x = 0; x < treeObjects.size(); x++) {
+             reader.snapshots.get(to).get(id)[x].count = treeObjects.get(x).count;
+        }
+
+
         if (globalBuffer1) {
             for (int x = 0 ; x < treeObjects.size(); x++) {
                 // snapshots.get(1).get(targetThread.id)[x].count = snapshots.get(1).get(targetThread.id)[x].count;
             }
             for (int x = 0 ; x < treeObjects.size(); x++) {
-               snapshots.get(0).get(targetThread.id)[x].count += objects[x].count;
+                reader.snapshots.get(0).get(targetThread.id)[x].count += objects[x].count;
             }
         } else {
             for (int x = 0 ; x < treeObjects.size(); x++) {
 //                snapshots.get(1).get(targetThread.id)[x].count = snapshots.get(0).get(targetThread.id)[x].count;
             }
             for (int x = 0 ; x < treeObjects.size(); x++) {
-                snapshots.get(1).get(targetThread.id)[x].count += objects[x].count;
+                 reader.snapshots.get(1).get(targetThread.id)[x].count += objects[x].count;
             }
 
         }
@@ -255,7 +284,8 @@ public class LockBenchmarkMultipleSeersSnapshotNoLock extends Thread {
         }
     }
 
-    private void merge(boolean side, LockBenchmarkMultipleSeersSnapshotNoLock thread,
+    private void merge(boolean side,
+                       LockBenchmarkMultipleSeersSnapshotNoLock thread,
                        TreeObject[] left1) {
         for (TreeObject treeObject : left1) {
             lookup(side, thread, treeObject).count += treeObject.count;
@@ -359,6 +389,19 @@ public class LockBenchmarkMultipleSeersSnapshotNoLock extends Thread {
         double l = totalRequests / seconds;
         System.out.println(String.format("%f requests per second", l));
         System.out.println(String.format("Time taken: %f", seconds));
+        for (LockBenchmarkMultipleSeersSnapshotNoLock seerThread : seerThreads) {
+            for (int y = 0 ; y < 2 ; y++) {
+
+                for (int x = 0; x < seerThread.snapshots.get(y).size(); x++) {
+                    long total = 0;
+                    for (TreeObject treeObject : seerThread.snapshots.get(y).get(x)) {
+                        System.out.println(String.format("thread %d Total: %d", x, treeObject.count));
+                        total += treeObject.count;
+                    }
+                    System.out.println(String.format("THREAD GROUP TOTAL %d", total));
+                }
+            }
+        }
     }
 
     private void setThreads(List<LockBenchmarkMultipleSeersSnapshotNoLock> threads) {
