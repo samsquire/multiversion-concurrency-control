@@ -93,9 +93,31 @@ function withdraw(int account, int amount) {
 }
 ```
 
-# Async/await
+# AsyncAwait.java
 
 It's possible to implement async/await using switch statements.
+
+This schedules multiple tasks that each increment a counter.
+
+# TokenRingTimer
+
+This is an approach to concurrency and parallleism where the writer thread is passed around a ring. It achieves 951,098 requests per second.
+
+# TokenRingTimer2
+
+This is an advancement of the original TokenRingTimer and does reading as well as writing. It achives around 585,000 requests per second.
+
+# TokenRingTimer2AsyncAwait
+
+This is the async await script adapted into the token ring parallelism idea. There is one thread writing at any given point. 
+
+# TokenRingTimer2AsyncAwait2
+
+This is where the token ring actually distributes work across threads.
+
+# MultiAwait
+
+This distributes work across multiple threads.
 
 # Async/await thread pool
 
