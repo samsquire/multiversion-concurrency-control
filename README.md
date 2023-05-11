@@ -2,16 +2,17 @@
 
 This repository is where I do experimental work on concurrency and parallelism problems. In this repository:
 
-* Raft implementation
-* Multithreaded multiversion concurrency control
+* A toy Raft implementation
+* Multithreaded multiversion concurrency control (MVCC.java and TransactionC.java)
 * Left Right Concurrency control with Hashmaps
 * A parallel actor interpreter programmed with its own assembly
-* 4 variations of a multithreaded parallel actor implementations
+* Many variations of a multithreaded parallel actor implementations
 * Concurrent looping (parallel mapreduce for nested loops)
 * A multiconsumer multiproducer ringbuffer which is threadsafe This is inspired by [Alexander Krizhanovsky](https://www.linuxjournal.com/content/lock-free-multi-producer-multi-consumer-queue-ring-buffer)
-* A high level programming language compiler that codegen targets the multithreaded interpreter
+* An incomplete high level programming language compiler that resembles Javascript that codegen targets the multithreaded interpreter
 * An async await switch statement
 * Async/await thread pool
+* A Soft Lock, a compositional lock scheme
 
 The headline implementation is a multithreaded multiversion concurrency control solution which handles safe and concurrent access to a database of integers without locking. We timestamp read events and check if there is any read event with a timestamp that is lower than us, in which case, we restart our transaction.
 
@@ -74,6 +75,8 @@ This starts 25 threads which each try to receive a message and send a message to
 
 # High level language
 
+The high level language is incomplete but compiles to the above assembly language.
+
 ```
 threads 25
 <start>
@@ -92,6 +95,87 @@ function withdraw(int account, int amount) {
     accounts[account].balance -= amount;
 }
 ```
+
+Hashes can be built up by the codegen. The following code generates the assembly following:
+
+```
+threads 1
+<start>
+set struct accounts = {
+    '1' = {
+        'balance' = 700;
+        'details' = {
+            'name' = 'Samuel Squire';
+        }
+    };
+};
+function deposit(string account, int amount) {
+    accounts[account]['balance'] += amount;
+}
+deposit('1', 100);
+```
+
+
+
+```
+0 define {variable=accounts, type=struct}
+1 pushstruct {}
+2 pushstring {token=1}
+3 pushtype {type=string}
+4 pushkey {type=struct}
+5 pushstruct {}
+6 pushstring {token=balance}
+7 pushtype {type=string}
+8 pushkey {type=struct}
+9 pushint {token=700}
+10 pushstring {token=700}
+11 pushtype {type=int}
+12 pushvalue {type=string}
+13 poptype {}
+14 pushstring {token=details}
+15 pushtype {type=string}
+16 pushkey {type=struct}
+17 pushstruct {}
+18 pushstring {token=name}
+19 pushtype {type=string}
+20 pushkey {type=struct}
+21 pushstring {token=Samuel Squire}
+22 pushtype {type=string}
+23 pushvalue {type=string}
+24 poptype {}
+25 pushtype {type=struct}
+26 pushvalue {type=string}
+27 poptype {}
+28 pushtype {type=struct}
+29 pushvalue {type=string}
+30 poptype {}
+31 pushtype {type=struct}
+32 store {variable=accounts, type=struct}
+33 createlabel {label=deposit}
+34 define {variable=account, type=string}
+35 define {variable=amount, type=int}
+36 load {variable=accounts, type=struct, token=accounts}
+37 pushstring {variable=account, type=string, token=account}
+38 loadhashvar {}
+39 pushstring {token=account}
+40 pushstring {variable=balance, type=string, token=balance}
+41 loadhash {}
+42 pushstring {token=balance}
+43 load {variable=amount, type=int, token=amount}
+44 pluseq {}
+45 return {}
+46 pushargumentstr {argument=1}
+47 pushargument {argument=100}
+48 call {method=deposit}
+```
+
+Which executes twice because I haven't written guards.
+
+```
+{1={balance=900, details={name=Samuel Squire}}}
+```
+
+
 
 # AsyncAwait.java
 
