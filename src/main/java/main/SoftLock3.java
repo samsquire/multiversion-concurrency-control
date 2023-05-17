@@ -60,11 +60,11 @@ public class SoftLock3 extends Thread {
         System.out.println(String.format("Requests %d", total));
         System.out.println(String.format("Duration %d", duration / 1000));
         System.out.println(String.format("Requests per second %d", total / seconds));
-        System.out.println(String.format("Total full synchronizations %d", (locksSize * sublocks)));
+        System.out.println(String.format("Total full synchronizations %d", (12 * locksSize * sublocks)));
         System.out.println(String.format("Locks across threads processed per second %d", (locksSize * sublocks) / (duration / 1000)));
         for (SoftLock3 thread : threads) {
             for (Lock lock : thread.bigLocks) {
-                // System.out.println(lock.users);
+                 // System.out.println(lock.users);
 
             }
         }
@@ -118,7 +118,7 @@ public class SoftLock3 extends Thread {
 
             for (int x = 0; x < waiting.size(); x++) {
                 Lock lock1 = waiting.get(x);
-                if (!lock1.handled && lock1.parent.submitted == lock1.parent.locks.size()) {
+                if (lock1.parent.submitted == lock1.parent.locks.size()) {
                     n++;
                     lock1.handled = true;
                     removals.add(lock1);
