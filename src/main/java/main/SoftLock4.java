@@ -14,7 +14,7 @@ public class SoftLock4 extends Thread {
     private List<SoftLock4> threads;
     private boolean running = true;
 
-    private List<Lock> waiting = new ArrayList<>();
+    private Map<String, List<Lock>> waiting = new HashMap<>();
     private ArrayList<Lock>[] incoming;
     private long n;
     private int nextFree;
@@ -23,7 +23,8 @@ public class SoftLock4 extends Thread {
     public SoftLock4(int id,
                      int locksPerThread,
                      int sublocks,
-                     Map<String, Lock> proted) {
+                     Map<String, Lock> proted,
+                     List<String> regions) {
         this.id = id;
         this.locksPerThread = locksPerThread;
         this.sublocks = sublocks;
@@ -31,6 +32,9 @@ public class SoftLock4 extends Thread {
         this.lock = new ReentrantReadWriteLock().writeLock();
         this.bigLocks = new ArrayList<Lock>();
         this.regionLocks = new HashMap<>();
+        for (String region : regions) {
+            this.waiting.put(region, new ArrayList<>());
+        }
 
     }
 
@@ -49,7 +53,7 @@ public class SoftLock4 extends Thread {
         regions.add("a");
         regions.add("b");
         for (int x = 0; x < threadCount; x++) {
-            SoftLock4 thread = new SoftLock4(x, locksPerThread, sublocks, proted);
+            SoftLock4 thread = new SoftLock4(x, locksPerThread, sublocks, proted, regions);
             threads.add(thread);
         }
         Lock amaster = new Lock(0, null, null, "a", regions, threads.size());
@@ -70,8 +74,8 @@ public class SoftLock4 extends Thread {
             threads.get(x).setThreads(new ArrayList<>(threads));
         }
         for (int x = 0; x < threadCount; x++) {
-            threads.get(x).waiting.add(amaster);
-            threads.get(x).waiting.add(bmaster);
+            threads.get(x).waiting.get("a").add(amaster);
+            threads.get(x).waiting.get("b").add(bmaster);
         }
         for (int x = 0; x < threadCount; x++) {
             threads.get(x).start();
@@ -133,8 +137,15 @@ public class SoftLock4 extends Thread {
             }
             regionLocks.put(regions.get(x), threadLocks);
         }
-        while (running || waiting.size() > 2) {
-            if (running && waiting.size() == 2) {
+
+            HashSet<Lock> parents = new HashSet<>();
+        long total = 0;
+        while (running || total > 2) {
+            total = 0;
+            for (String region : regions) {
+                total += waiting.get(region).size();
+            }
+            if (running && total == 2) {
 
             for (int x = 0 ; x < locksPerThread; x++) {
                 int pickedLock = rng.nextInt(threads.size());
@@ -158,79 +169,96 @@ public class SoftLock4 extends Thread {
                             threads.size());
                     proted.get(region2).addLock(region2, dependencyLock);
                     regionLocks.get(region2).get(dependency).add(dependencyLock);
-                    waiting.add(dependencyLock);
+                    waiting.get(region2).add(dependencyLock);
 
                 }
 
-                waiting.add(currentLock);
+                waiting.get(region).add(currentLock);
             }
             }
 
 
 
-//         System.out.println(String.format("%d %d %d %d %d %d",
-//                 id, waiting.size(), proted.get("a").submitted.get("a").get(),
-//                 proted.get("a").locks.get("a").size(),
-//                 proted.get("b").submitted.get("b").get(),
-//                 proted.get("b").locks.get("b").size()));
-            HashSet<Lock> parents = new HashSet();
-            for (int x = 0; x < waiting.size(); x++) {
-                Lock lock1 = waiting.get(x);
-                parents.add(lock1.parent);
+//
+//            System.out.println(String.format("%d %d %d %d %d %d %d",
+//                    id, waiting.get("a").size(), waiting.get("b").size(), proted.get("a").submitted.get("a").get(),
+//                    proted.get("a").locks.get("a").size(),
+//                    proted.get("b").submitted.get("b").get(),
+//                    proted.get("b").locks.get("b").size()));
+            for (int x = 0; x < regions.size(); x++) {
 
-                if (lock1.parent.done[id] ||
+                List<Lock> waitingLocks = waiting.get(regions.get(x));
+                for (Lock lock1 : waitingLocks) {
 
-                                lock1.parent.submitted.get(lock1.region).get() == lock1.parent.locks.get(lock1.region).size()) {
-                    n++;
+
+                    if (lock1.parent.done[id] ||
+
+                            lock1.parent.submitted.get(lock1.region).get() == lock1.parent.locks.get(lock1.region).size()) {
+                        parents.add(lock1.parent);
+                        n++;
 //                    System.out.println("Master lock completed");
 
-                    // lock1.handled = true;
-                    if (!lock1.master) {
-                        removals.add(lock1);
-                    } else {
-                        lock1.parent.done[id] = false;
-                    }
-                    String nextRegion = nextRegions.get(lock1.parent.region);
-                    // System.out.println(String.format("next region is %s", nextRegion));
+                        // lock1.handled = true;
+                        if (!lock1.master) {
+                            removals.add(lock1);
+                        } else {
+                            lock1.parent.done[id] = false;
+                        }
+                        String nextRegion = nextRegions.get(lock1.parent.region);
+                        // System.out.println(String.format("next region is %s", nextRegion));
 //                    lock1.parent.submitted.get(nextRegion).set(0);
 //                    lock1.parent.submitted.get(lock1.region).set(0);
 //                    lock1.submitted.get(lock1.region).set(0);
 
-                    // System.out.println(String.format("parent lock fulfilled %d", lock1.parent.submitted));
+                        // System.out.println(String.format("parent lock fulfilled %d", lock1.parent.submitted));
 
+                    }
                 }
             }
                 for (Lock parent : parents) {
                     if (parent.finishes.get() == threads.size() * threads.size()) {
-//                         System.out.println("clearing");
+                         System.out.println("clearing");
+
                         parent.submitted.get(parent.region).set(0);
-                        parent.finishes.set(0);
                         parent.lock.lock();
+                        parent.finishes.set(0);
+//                        parents.add(proted.get(nextRegions.get(parent.region)));
                         parent.locks.get(parent.region).clear();
+                        waiting.get(parent.region).clear();
+                        waiting.get(parent.region).add(proted.get(nextRegions.get(parent.region)));
+                        parent.locks.get(parent.region).add(proted.get(nextRegions.get(parent.region)));
                         parent.lock.unlock();
+
                     }
                     for (int y = 0; y < threads.size(); y++) {
-                    parent.finishes.incrementAndGet();
+                        threads.get(id).lock.lock();
+                        if(parent.finishes.get() < threads.size() * threads.size()) {
+                            parent.finishes.incrementAndGet();
+                        }
 
 //                                System.out.println(String.format("size %s %s ", nextRegion, regionLocks.get(nextRegion).size()));
                         threads.get(y).incoming[id].addAll(regionLocks.get(nextRegions.get(parent.region)).get(y));
 //                                lock1.parent.locks.get(lock1.region).removeAll(waiting);
 //                                lock1.parent.locks.get(lock1.region).add(proted.get(lock1.region));
 //                                lock1.parent.locks.get(nextRegion).add(proted.get(nextRegion));
+                        threads.get(id).lock.unlock();
+
                         regionLocks.get(nextRegions.get(parent.region)).get(y).clear();
+
                     }
                 }
-            waiting.removeAll(removals);
-            removals.clear();
             for (int x = 0 ; x < threads.size() ; x++) {
                     List<Lock> remove = incoming[x];
-                    for (int y = 0; y < remove.size(); y++) {
-
-                        remove.get(y).parent.lock.lock();
-                        Lock item = remove.remove(y);
+                threads.get(x).lock.lock();
+                Iterator<Lock> iterator = remove.iterator();
+                while (iterator.hasNext()) {
+                        Lock item = iterator.next();
+                        iterator.remove();
                         item.finish(item.region, id);
-                        item.parent.lock.unlock();
+
                     }
+                threads.get(x).lock.unlock();
+
 
             }
 
@@ -287,7 +315,7 @@ public class SoftLock4 extends Thread {
             parent.submitted.get(region).set(parent.submitted.get(region).get() + 1);
             this.parent.lock.unlock();
 
-//             System.out.println(String.format("Finished region %d %s %d %d %d %d", id, region, parent.submitted.get(region).get(), parent.locks.size(), parent.locks.get("a").size(), parent.locks.get("b").size()));
+             System.out.println(String.format("Finished region %d %s %d %d %d %d", id, region, parent.submitted.get(region).get(), parent.locks.size(), parent.locks.get("a").size(), parent.locks.get("b").size()));
 
         }
 
