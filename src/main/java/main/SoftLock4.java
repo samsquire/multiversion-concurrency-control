@@ -153,7 +153,7 @@ public class SoftLock4 extends Thread {
                 total += waiting.get(region).size();
             }
             if (running && total == 2) {
-                System.out.println("Populating locks");
+//                System.out.println("Populating locks");
 
                 for (int x = 0; x < locksPerThread; x++) {
                     int pickedLock = rng.nextInt(threads.size());
@@ -277,18 +277,18 @@ public class SoftLock4 extends Thread {
                     iterator.remove();
                     item.finish(item.region, id);
                     Lock parent = item.parent;
-                    System.out.println(parent.finishes.get(parent.region).get());
+//                    System.out.println(parent.finishes.get(parent.region).get());
                     int size = parent.locks.get(parent.region).size();
                     if (parent.submitted.get(parent.region).get() == size) {
 
-                        System.out.println(String.format("Clearing next region %s", parent.region));
+//                        System.out.println(String.format("Clearing next region %s", parent.region));
 //                        parentRemovals.add(parent);
                         parent.submitted.get(parent.region).set(0);
                         parent.finishes.get(parent.region).set(0);
 //                        parents.add(proted.get(nextRegions.get(parent.region)));
 //                    parent.locks.get(parent.region).add(proted.get(nextRegions.get(parent.region)));
 //                    parent.locks.get(nextRegions.get(parent.region)).add(proted.get(parent.region));
-                        System.out.println(String.format("need a reset %s", parent.region));
+//                        System.out.println(String.format("need a reset %s", parent.region));
 
                         parent.locks.get(parent.region).clear();
 //                         parent.locks.get(parent.region).add(proted.get(parent.region));
@@ -301,7 +301,7 @@ public class SoftLock4 extends Thread {
 
 
 
-                                System.out.println(String.format("Total reset resume %s", nextRegions.get(parent.region)));
+//                                System.out.println(String.format("Total reset resume %s", nextRegions.get(parent.region)));
                                 // proted.get(activeRegion.region).done[y] = true;
                         }
                                 activeRegion.region = nextRegions.get(activeRegion.region);
@@ -369,7 +369,7 @@ public class SoftLock4 extends Thread {
             parent.submitted.get(region).set(parent.submitted.get(region).get() + 1);
             this.parent.lock.unlock();
 
-            System.out.println(String.format("Finished region region %s id %d submitted %d locks %d alocks %d blocks %d", region, id, parent.submitted.get(region).get(), parent.locks.get(region).size(), parent.locks.get("a").size(), parent.locks.get("b").size()));
+//            System.out.println(String.format("Finished region region %s id %d submitted %d locks %d alocks %d blocks %d", region, id, parent.submitted.get(region).get(), parent.locks.get(region).size(), parent.locks.get("a").size(), parent.locks.get("b").size()));
 
         }
 
