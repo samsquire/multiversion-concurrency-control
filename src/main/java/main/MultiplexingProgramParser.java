@@ -582,10 +582,12 @@ public class MultiplexingProgramParser {
         public List<String> arguments;
         public int submitted;
         public int pending;
+        public List<String> values;
 
         public Fact(String name) {
             this.name = name;
             this.arguments = new ArrayList<>();
+            this.values = new ArrayList<>();
         }
 
         public void add(String token2) {
@@ -601,6 +603,10 @@ public class MultiplexingProgramParser {
                 stringBuilder.append(",");
             }
             return stringBuilder.toString();
+        }
+
+        public void submit(String value) {
+            this.values.add(value);
         }
     }
 }

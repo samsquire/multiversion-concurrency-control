@@ -1,2 +1,2 @@
 thread(s) = state1(yes) | send(message) | receive(message2);
-thread(r) = state2(yes) | receive(message) | send(message2);
+thread(r) = state1(yes) | receive(message) | send(message2);

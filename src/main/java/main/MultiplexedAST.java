@@ -76,11 +76,8 @@ public class MultiplexedAST {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append(identifier);
-            sb.append("\n");
             sb.append(fact);
-            sb.append("\n");
             sb.append(stateline);
-            sb.append("\n");
             return sb.toString();
 
         }
