@@ -1,1 +1,2 @@
-thread(x) = a(optional, two, three) m(hello) | b(four, five) | c | d
+thread(x) = a(optional, two, three) m(hello) | b(four, five) | c | d;
+thread(x) b(c) = january(one) february(two) | three(four)

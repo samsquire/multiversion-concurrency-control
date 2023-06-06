@@ -410,34 +410,58 @@ public class MultiplexingProgramParser {
 
     public MultiplexedAST parse() {
         String token = "";
+
         Stateline stateline = new Stateline();
+        List<Stateline> statelines = new ArrayList<>();
+        statelines.add(stateline);
         while (!this.end) {
             System.out.println(token);
             token = getToken(false, 1);
+
             System.out.println(token);
             if (type.equals("identifier")) {
                 System.out.println("Found identifier");
-                parseFact(token, stateline);
+                if ( parseFact(token, stateline)) {
+                    stateline = new Stateline();
+                    statelines.add(stateline);
+                }
             }
         }
-        System.out.println(stateline);
-        return null;
+        System.out.println(statelines);
+        MultiplexedAST trie = createTrie(statelines);
+
+        return trie;
+    }
+
+    private MultiplexedAST createTrie(List<Stateline> statelines) {
+        MultiplexedAST ast = new MultiplexedAST(statelines);
+        for (Stateline stateline : statelines) {
+            for (Identifier identifier : stateline.identifiers) {
+                for (Fact fact : identifier.arguments) {
+                    ast.register(fact, identifier, stateline);
+
+                }
+            }
+        }
+        return ast;
     }
 
     /**
      * thread(x) = a(optional, two, three) m(hello) | b(four, five) | c | d
      * identifier openbracket identifier closebracket eq identifier openbracket identifier comma identifier comma identifier closebracket pipe
+     *
      * @param token
      * @param stateline
+     * @return
      */
-    private void parseFact(String token2, Stateline stateline) {
+    private boolean parseFact(String token2, Stateline stateline) {
 
         System.out.println("peeked " + type);
 
         System.out.println("looping in facts");
         Identifier identifier = new Identifier(token2);
         stateline.add(identifier);
-        while (!end && (!token2.equals("pipe")) && (!token2.equals("eq"))) {
+        while (!end && (!token2.equals("pipe")) && (!token2.equals("eq") && !token2.equals("semicolon"))) {
 
             String token1 = getToken(false, 1);
             if (token1.equals("openbracket")) {
@@ -448,6 +472,9 @@ public class MultiplexingProgramParser {
             }
             if (token1.equals("eq")) {
                 break;
+            }
+            if (token1.equals("semicolon")) {
+                return true;
             }
             System.out.println(String.format("token is %s", token1));
             Fact fact = new Fact(token1);
@@ -488,10 +515,13 @@ public class MultiplexingProgramParser {
             System.out.println(token2);
         }
         System.out.println("Cancelled");
+        return false;
     }
 
-    private class Stateline {
+    public class Stateline {
         public List<Identifier> identifiers;
+        public volatile boolean runnable = false;
+
         public Stateline() {
             this.identifiers = new ArrayList<>();
         }
@@ -511,7 +541,8 @@ public class MultiplexingProgramParser {
         }
     }
 
-    private class Identifier {
+    public class Identifier {
+        public int submitted;
         String identifier;
         List<Fact> arguments;
         public Identifier(String identifier) {
@@ -535,11 +566,23 @@ public class MultiplexingProgramParser {
             }
             return stringBuilder.toString();
         }
+
+        public boolean pending() {
+            for (Fact fact : arguments) {
+                if (fact.submitted < fact.pending) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
-    private class Fact {
+    public class Fact {
         public String name;
         public List<String> arguments;
+        public int submitted;
+        public int pending;
+
         public Fact(String name) {
             this.name = name;
             this.arguments = new ArrayList<>();
