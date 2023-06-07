@@ -83,12 +83,10 @@ public class MultiplexingThread extends Thread implements API {
                                MultiplexingProgramParser.Stateline stateline,
                                MultiplexingProgramParser.Identifier identifier,
                                List<MultiplexingProgramParser.Fact> values) {
-                System.out.println(String.format("SEND %s %s", identifier, values));
                 Map<String, String> valueMap = api.createValueMap(thread, "send");
                 for (MultiplexingThread currentThread : threads) {
                     if (currentThread == thread) { continue; }
                     for (MultiplexedAST.Pair pair : api.getAst().children.get("receive")) {
-                        System.out.println("FACT2 " + pair);
 
                         pair.fact.pending++;
                     }
@@ -107,13 +105,10 @@ public class MultiplexingThread extends Thread implements API {
                                MultiplexingProgramParser.Stateline stateline,
                                MultiplexingProgramParser.Identifier identifier,
                                List<MultiplexingProgramParser.Fact> values) {
-                System.out.println(String.format("SEND %s %s", identifier, values));
                 Map<String, String> valueMap = api.createValueMap(thread, "send");
                 for (MultiplexingThread currentThread : threads) {
                     if (currentThread == thread) { continue; }
                     for (MultiplexedAST.Pair pair : api.getAst().children.get("receive")) {
-                        System.out.println("FACT2 " + pair);
-
                         pair.fact.pending++;
                     }
                     currentThread.lock.lock();
@@ -230,7 +225,9 @@ public class MultiplexingThread extends Thread implements API {
                             break;
                         }
                     }
+                    lock.lock();
                     System.out.println(String.format("running %s", stateline));
+                    lock.unlock();
                 }
             }
         }
