@@ -1,6 +1,5 @@
 package main;
 
-import java.util.List;
 import java.util.Map;
 
 public interface API {
@@ -8,7 +7,7 @@ public interface API {
 
     MultiplexedAST getAst();
 
-    Map<String, String> createValueMap(List<MultiplexingProgramParser.Fact> values);
+    Map<String, String> createValueMap(MultiplexingThread thread, String identifier);
 
     void wait(String send);
 

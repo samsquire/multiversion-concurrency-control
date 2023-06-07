@@ -606,6 +606,7 @@ public class MultiplexingProgramParser {
         }
 
         public void submit(String value) {
+            System.out.println(String.format("Added value %s", value));
             this.values.add(value);
         }
     }

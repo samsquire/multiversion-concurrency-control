@@ -53,11 +53,11 @@ public class MultiplexingThread extends Thread implements API {
         sendThread.register("thread", new StateHandler() {
 
             @Override
-            public void handle(API api,
+            public void handle(MultiplexingThread thread, API api,
                                MultiplexingProgramParser.Stateline stateline,
                                MultiplexingProgramParser.Identifier identifier,
                                List<MultiplexingProgramParser.Fact> values) {
-                Map<String, String> valueMap = api.createValueMap(values);
+                Map<String, String> valueMap = api.createValueMap(thread, "state1");
                 api.getAst().variables.get(identifier.identifier);
 
                 api.fire("state1", valueMap);
@@ -66,11 +66,70 @@ public class MultiplexingThread extends Thread implements API {
         readThread.register("thread", new StateHandler() {
 
             @Override
-            public void handle(API api,
+            public void handle(MultiplexingThread thread, API api,
                                MultiplexingProgramParser.Stateline stateline,
                                MultiplexingProgramParser.Identifier identifier,
                                List<MultiplexingProgramParser.Fact> values) {
-                Map<String, String> valueMap = api.createValueMap(values);
+                Map<String, String> valueMap = api.createValueMap(thread, "state1");
+                api.getAst().variables.get(identifier.identifier);
+
+                api.fire("state1", valueMap);
+            }
+        });
+        sendThread.register("send", new StateHandler() {
+
+            @Override
+            public void handle(MultiplexingThread thread, API api,
+                               MultiplexingProgramParser.Stateline stateline,
+                               MultiplexingProgramParser.Identifier identifier,
+                               List<MultiplexingProgramParser.Fact> values) {
+                System.out.println(String.format("SEND %s %s", identifier, values));
+                Map<String, String> valueMap = api.createValueMap(thread, "receive");
+                for (MultiplexingThread currentThread : threads) {
+                    if (currentThread == thread) { continue; }
+                    for (MultiplexingProgramParser.Fact fact : values) {
+                        System.out.println("FACT2 " + fact);
+                        fact.pending++;
+                    }
+                    currentThread.lock.lock();
+
+                    currentThread.fire("receive", valueMap);
+
+                    currentThread.lock.unlock();
+                }
+            }
+        });
+        readThread.register("send", new StateHandler() {
+
+            @Override
+            public void handle(MultiplexingThread thread, API api,
+                               MultiplexingProgramParser.Stateline stateline,
+                               MultiplexingProgramParser.Identifier identifier,
+                               List<MultiplexingProgramParser.Fact> values) {
+                System.out.println(String.format("SEND %s %s", identifier, values));
+                Map<String, String> valueMap = api.createValueMap(thread, "receive");
+                for (MultiplexingThread currentThread : threads) {
+                    if (currentThread == thread) { continue; }
+                    for (MultiplexingProgramParser.Fact fact : values) {
+                        System.out.println("FACT2 " + fact);
+                        fact.pending++;
+                    }
+                    currentThread.lock.lock();
+
+                    currentThread.fire("receive", valueMap);
+
+                    currentThread.lock.unlock();
+                }
+            }
+        });
+        readThread.register("thread", new StateHandler() {
+
+            @Override
+            public void handle(MultiplexingThread thread, API api,
+                               MultiplexingProgramParser.Stateline stateline,
+                               MultiplexingProgramParser.Identifier identifier,
+                               List<MultiplexingProgramParser.Fact> values) {
+                Map<String, String> valueMap = api.createValueMap(thread, "state1");
                 api.getAst().variables.get(identifier.identifier);
 
                 api.fire("state1", valueMap);
@@ -79,32 +138,33 @@ public class MultiplexingThread extends Thread implements API {
         sendThread.register("state1", new StateHandler() {
 
             @Override
-            public void handle(API api,
+            public void handle(MultiplexingThread thread, API api,
                                MultiplexingProgramParser.Stateline stateline,
                                MultiplexingProgramParser.Identifier identifier,
                                List<MultiplexingProgramParser.Fact> values) {
-                Map<String, String> valueMap = api.createValueMap(values);
                 api.wait("send");
                 api.submit("send", "message", "Hello world");
+                Map<String, String> valueMap = api.createValueMap(thread, "send");
+                System.out.println(valueMap);
                 for (MultiplexingProgramParser.Fact fact : values) {
                     fact.submitted++;
                 }
 
-                api.fire("receive", valueMap);
+                api.fire("send", valueMap);
             }
         });
         readThread.register("receive", new StateHandler() {
 
             @Override
-            public void handle(API api,
+            public void handle(MultiplexingThread thread, API api,
                                MultiplexingProgramParser.Stateline stateline,
                                MultiplexingProgramParser.Identifier identifier,
                                List<MultiplexingProgramParser.Fact> values) {
-                Map<String, String> valueMap = api.createValueMap(values);
                 System.out.println("read thread setting message2");
                 api.wait("send");
                 api.submit("send", "message2", "Hello reply");
-                api.fire("receive", valueMap);
+                Map<String, String> valueMap = api.createValueMap(thread,"send");
+                api.fire("send", valueMap);
             }
         });
         readThread.setEntryPoint(new Match("thread", "r"));
@@ -140,28 +200,7 @@ public class MultiplexingThread extends Thread implements API {
 
     public void run() {
         System.out.println(String.format("%d Thread started", id));
-        register("send", new StateHandler() {
 
-            @Override
-            public void handle(API api,
-                               MultiplexingProgramParser.Stateline stateline,
-                               MultiplexingProgramParser.Identifier identifier,
-                               List<MultiplexingProgramParser.Fact> values) {
-                System.out.println(String.format("SEND %s %s", identifier, values));
-                Map<String, String> valueMap = api.createValueMap(values);
-                for (MultiplexingThread thread : threads) {
-                    for (MultiplexingProgramParser.Fact fact : values) {
-                        System.out.println("FACT2 " + fact);
-                        fact.pending++;
-                    }
-                    thread.lock.lock();
-
-                    thread.fire("receive", valueMap);
-
-                    thread.lock.unlock();
-                }
-            }
-        });
         for (MultiplexedAST.Pair pair : ast.children.get("thread")) {
             pair.fact.values.add(String.valueOf(id));
         }
@@ -174,7 +213,7 @@ public class MultiplexingThread extends Thread implements API {
                             System.out.println(String.format("%d %s is satisfied", id, identifier));
                             if (handlers.containsKey(identifier.identifier)) {
 
-                                handlers.get(identifier.identifier).handle(this, stateline, identifier, identifier.arguments);
+                                handlers.get(identifier.identifier).handle(this,this, stateline, identifier, identifier.arguments);
                             }
                             if (internal.containsKey(identifier.identifier)) {
 
@@ -198,7 +237,6 @@ public class MultiplexingThread extends Thread implements API {
                      Map<String, String> values) {
         System.out.println(String.format("%d firing %s with value %s", id, identifier, values));
         for (MultiplexedAST.Pair pair : ast.children.get(identifier)) {
-            pair.fact.submit(values.get(pair.fact.name));
             pair.fact.pending++;
         }
     }
@@ -209,10 +247,15 @@ public class MultiplexingThread extends Thread implements API {
     }
 
     @Override
-    public Map<String, String> createValueMap(List<MultiplexingProgramParser.Fact> values) {
+    public Map<String, String> createValueMap(MultiplexingThread thread, String identifier) {
+
         HashMap<String, String> valueMap = new HashMap<>();
-        for (MultiplexingProgramParser.Fact fact : values) {
-            valueMap.put(fact.name, fact.values.get(fact.values.size() - 1));
+        for (MultiplexedAST.Pair pair : thread.ast.children.get(identifier)) {
+            for (MultiplexingProgramParser.Fact fact : pair.identifier.arguments) {
+                if (fact.values.size() > 0) {
+                    valueMap.put(fact.name, fact.values.get(fact.values.size() - 1));
+                }
+            }
         }
         return valueMap;
     }
@@ -234,7 +277,7 @@ public class MultiplexingThread extends Thread implements API {
     }
 
     public interface StateHandler {
-        public void handle(API api,
+        public void handle(MultiplexingThread thread, API api,
                            MultiplexingProgramParser.Stateline stateline,
                            MultiplexingProgramParser.Identifier identifier,
                            List<MultiplexingProgramParser.Fact> value);
