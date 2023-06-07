@@ -87,9 +87,10 @@ public class MultiplexingThread extends Thread implements API {
                 Map<String, String> valueMap = api.createValueMap(thread, "send");
                 for (MultiplexingThread currentThread : threads) {
                     if (currentThread == thread) { continue; }
-                    for (MultiplexingProgramParser.Fact fact : values) {
-                        System.out.println("FACT2 " + fact);
-                        fact.pending++;
+                    for (MultiplexedAST.Pair pair : currentThread.ast.children.get("send")) {
+                        System.out.println("FACT2 " + pair);
+
+                        pair.fact.pending++;
                     }
                     currentThread.lock.lock();
 
@@ -110,9 +111,10 @@ public class MultiplexingThread extends Thread implements API {
                 Map<String, String> valueMap = api.createValueMap(thread, "send");
                 for (MultiplexingThread currentThread : threads) {
                     if (currentThread == thread) { continue; }
-                    for (MultiplexingProgramParser.Fact fact : values) {
-                        System.out.println("FACT2 " + fact);
-                        fact.pending++;
+                    for (MultiplexedAST.Pair pair : currentThread.ast.children.get("send")) {
+                        System.out.println("FACT2 " + pair);
+
+                        pair.fact.pending++;
                     }
                     currentThread.lock.lock();
 
