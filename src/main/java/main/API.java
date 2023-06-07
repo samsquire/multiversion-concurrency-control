@@ -3,7 +3,7 @@ package main;
 import java.util.Map;
 
 public interface API {
-    public void fire(String variable, Map<String, String> values);
+    public void fire(MultiplexingThread thread, String variable, Map<String, String> values);
 
     MultiplexedAST getAst();
 

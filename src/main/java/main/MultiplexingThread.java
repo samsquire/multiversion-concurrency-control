@@ -60,7 +60,7 @@ public class MultiplexingThread extends Thread implements API {
                 Map<String, String> valueMap = api.createValueMap(thread, "state1");
                 api.getAst().variables.get(identifier.identifier);
 
-                api.fire("state1", valueMap);
+                api.fire(thread, "state1", valueMap);
             }
         });
         readThread.register("thread", new StateHandler() {
@@ -73,7 +73,7 @@ public class MultiplexingThread extends Thread implements API {
                 Map<String, String> valueMap = api.createValueMap(thread, "state1");
                 api.getAst().variables.get(identifier.identifier);
 
-                api.fire("state1", valueMap);
+                api.fire(thread,"state1", valueMap);
             }
         });
         sendThread.register("send", new StateHandler() {
@@ -84,7 +84,7 @@ public class MultiplexingThread extends Thread implements API {
                                MultiplexingProgramParser.Identifier identifier,
                                List<MultiplexingProgramParser.Fact> values) {
                 System.out.println(String.format("SEND %s %s", identifier, values));
-                Map<String, String> valueMap = api.createValueMap(thread, "receive");
+                Map<String, String> valueMap = api.createValueMap(thread, "send");
                 for (MultiplexingThread currentThread : threads) {
                     if (currentThread == thread) { continue; }
                     for (MultiplexingProgramParser.Fact fact : values) {
@@ -93,7 +93,7 @@ public class MultiplexingThread extends Thread implements API {
                     }
                     currentThread.lock.lock();
 
-                    currentThread.fire("receive", valueMap);
+                    currentThread.fire(currentThread,"receive", valueMap);
 
                     currentThread.lock.unlock();
                 }
@@ -107,7 +107,7 @@ public class MultiplexingThread extends Thread implements API {
                                MultiplexingProgramParser.Identifier identifier,
                                List<MultiplexingProgramParser.Fact> values) {
                 System.out.println(String.format("SEND %s %s", identifier, values));
-                Map<String, String> valueMap = api.createValueMap(thread, "receive");
+                Map<String, String> valueMap = api.createValueMap(thread, "send");
                 for (MultiplexingThread currentThread : threads) {
                     if (currentThread == thread) { continue; }
                     for (MultiplexingProgramParser.Fact fact : values) {
@@ -116,7 +116,7 @@ public class MultiplexingThread extends Thread implements API {
                     }
                     currentThread.lock.lock();
 
-                    currentThread.fire("receive", valueMap);
+                    currentThread.fire(currentThread,"receive", valueMap);
 
                     currentThread.lock.unlock();
                 }
@@ -132,7 +132,7 @@ public class MultiplexingThread extends Thread implements API {
                 Map<String, String> valueMap = api.createValueMap(thread, "state1");
                 api.getAst().variables.get(identifier.identifier);
 
-                api.fire("state1", valueMap);
+                api.fire(thread, "state1", valueMap);
             }
         });
         sendThread.register("state1", new StateHandler() {
@@ -150,7 +150,7 @@ public class MultiplexingThread extends Thread implements API {
                     fact.submitted++;
                 }
 
-                api.fire("send", valueMap);
+                api.fire(thread,"send", valueMap);
             }
         });
         readThread.register("receive", new StateHandler() {
@@ -164,7 +164,7 @@ public class MultiplexingThread extends Thread implements API {
                 api.wait("send");
                 api.submit("send", "message2", "Hello reply");
                 Map<String, String> valueMap = api.createValueMap(thread,"send");
-                api.fire("send", valueMap);
+                api.fire(thread,"send", valueMap);
             }
         });
         readThread.setEntryPoint(new Match("thread", "r"));
@@ -210,7 +210,7 @@ public class MultiplexingThread extends Thread implements API {
                     boolean allsatisfied = true;
                     for (MultiplexingProgramParser.Identifier identifier : stateline.identifiers) {
                         if (identifier.pending()) {
-                            System.out.println(String.format("%d %s is satisfied", id, identifier));
+                            System.out.println(String.format("%d %s is satisfied (%s)", id, identifier, identifier.arguments));
                             if (handlers.containsKey(identifier.identifier)) {
 
                                 handlers.get(identifier.identifier).handle(this,this, stateline, identifier, identifier.arguments);
@@ -233,10 +233,14 @@ public class MultiplexingThread extends Thread implements API {
     }
 
     @Override
-    public void fire(String identifier,
+    public void fire(MultiplexingThread thread, String identifier,
                      Map<String, String> values) {
         System.out.println(String.format("%d firing %s with value %s", id, identifier, values));
-        for (MultiplexedAST.Pair pair : ast.children.get(identifier)) {
+        for (MultiplexedAST.Pair pair : thread.ast.children.get(identifier)) {
+            if (values.containsKey(pair.fact.name)) {
+            System.out.println(String.format("fact name %s", pair.fact.name));
+                pair.fact.submit(values.get(pair.fact.name));
+            }
             pair.fact.pending++;
         }
     }

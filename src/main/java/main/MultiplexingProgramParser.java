@@ -598,8 +598,8 @@ public class MultiplexingProgramParser {
             stringBuilder.append(" ");
             stringBuilder.append(name);
             stringBuilder.append(" ");
-            for (String identifier : arguments) {
-                stringBuilder.append(identifier.toString());
+            for (String identifier : values) {
+                stringBuilder.append(identifier);
                 stringBuilder.append(",");
             }
             return stringBuilder.toString();
@@ -607,6 +607,7 @@ public class MultiplexingProgramParser {
 
         public void submit(String value) {
             System.out.println(String.format("Added value %s", value));
+            this.values.clear();
             this.values.add(value);
         }
     }
