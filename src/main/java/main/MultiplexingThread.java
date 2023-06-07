@@ -87,7 +87,7 @@ public class MultiplexingThread extends Thread implements API {
                 Map<String, String> valueMap = api.createValueMap(thread, "send");
                 for (MultiplexingThread currentThread : threads) {
                     if (currentThread == thread) { continue; }
-                    for (MultiplexedAST.Pair pair : currentThread.ast.children.get("send")) {
+                    for (MultiplexedAST.Pair pair : api.getAst().children.get("receive")) {
                         System.out.println("FACT2 " + pair);
 
                         pair.fact.pending++;
@@ -111,7 +111,7 @@ public class MultiplexingThread extends Thread implements API {
                 Map<String, String> valueMap = api.createValueMap(thread, "send");
                 for (MultiplexingThread currentThread : threads) {
                     if (currentThread == thread) { continue; }
-                    for (MultiplexedAST.Pair pair : currentThread.ast.children.get("send")) {
+                    for (MultiplexedAST.Pair pair : api.getAst().children.get("receive")) {
                         System.out.println("FACT2 " + pair);
 
                         pair.fact.pending++;
@@ -212,7 +212,9 @@ public class MultiplexingThread extends Thread implements API {
                     boolean allsatisfied = true;
                     for (MultiplexingProgramParser.Identifier identifier : stateline.identifiers) {
                         if (identifier.pending()) {
+                            lock.lock();
                             System.out.println(String.format("%d %s is satisfied (%s)", id, identifier, identifier.arguments));
+                            lock.unlock();
                             if (handlers.containsKey(identifier.identifier)) {
 
                                 handlers.get(identifier.identifier).handle(this,this, stateline, identifier, identifier.arguments);
