@@ -14,6 +14,7 @@ public class BarrierSynchronization extends Thread {
 
 
     private final int id;
+    private List<ConcurrentLinkedQueue<BarrierTask>> clqs;
     private final boolean synchronizer;
     private ConcurrentLinkedQueue<BarrierTask> clq;
     private volatile boolean running = true;
@@ -22,16 +23,22 @@ public class BarrierSynchronization extends Thread {
 
     public BarrierSynchronization(int id,
                                   ConcurrentLinkedQueue<BarrierTask> clq,
-                                  boolean synchronizer) {
+                                  List<ConcurrentLinkedQueue<BarrierTask>> clqs, boolean synchronizer) {
         this.id = id;
         this.clq = clq;
+        this.clqs = clqs;
         this.synchronizer = synchronizer;
     }
 
     public static void main(String args[]) throws InterruptedException {
-        int threadCount = 12;
+        int threadCount = 11;
         int seconds = 5;
-        ConcurrentLinkedQueue<BarrierTask> clq = new ConcurrentLinkedQueue<>();
+        List<ConcurrentLinkedQueue<BarrierTask>> clqs = new ArrayList<>();
+        for (int x = 0 ; x < threadCount; x++) {
+            ConcurrentLinkedQueue<BarrierTask> clq = new ConcurrentLinkedQueue<>();
+            clqs.add(clq);
+
+        }
         int secondsMillis = seconds * 1000;
         DoublyLinkedList dll = new DoublyLinkedList(0, 100);
         BarrierTask parent = new BarrierTask(null, threadCount, -1, threadCount);
@@ -41,11 +48,11 @@ public class BarrierSynchronization extends Thread {
             BarrierTask task = new BarrierTask(parent, threadCount, x, threadCount);
             tasks.add(task);
         }
-        BarrierSynchronization synchronizer = new BarrierSynchronization(-1, clq, true);
+        BarrierSynchronization synchronizer = new BarrierSynchronization(-1, null, clqs, true);
         synchronizer.start();
         List<BarrierSynchronization> threads = new ArrayList();
         for (int x = 0; x < threadCount; x++) {
-            BarrierSynchronization thread = new BarrierSynchronization(x, clq, false);
+            BarrierSynchronization thread = new BarrierSynchronization(x, clqs.get(x), clqs, false);
             threads.add(thread);
             thread.addTask(tasks.get(x));
         }
@@ -81,10 +88,12 @@ public class BarrierSynchronization extends Thread {
     public void run() {
         if (synchronizer) {
             while (running) {
-                BarrierTask item = clq.poll();
-                if (item != null) {
-                    item.run();
-                } else {
+                for (ConcurrentLinkedQueue<BarrierTask> clq : clqs) {
+                    BarrierTask item = clq.poll();
+                    if (item != null) {
+                        item.run();
+                    } else {
+                    }
                 }
             }
         } else {
@@ -96,7 +105,7 @@ public class BarrierSynchronization extends Thread {
                         task.ready();
                     }
 
-                    if (canRun(task)) {
+                    if (true) {
                         clq.offer(task);
                     } else {
 
@@ -110,10 +119,6 @@ public class BarrierSynchronization extends Thread {
     }
 
     private boolean ready(BarrierTask task) {
-        return true;
-    }
-
-    private boolean canRun(BarrierTask task) {
         return true;
     }
 

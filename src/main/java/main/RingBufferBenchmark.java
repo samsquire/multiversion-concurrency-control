@@ -12,17 +12,22 @@ public class RingBufferBenchmark extends RingBufferWriter {
     public static void main(String args[]) throws InterruptedException {
         int threadCount = 2;
         int seconds = 5;
+        int writerCount = 11;
+        int readerCount = 1;
         ArrayList<RingBufferBenchmark> threads = new ArrayList<>();
         RingBuffer ringBuffer = new RingBuffer(5000);
-        for (int x = 0; x < threadCount; x++) {
-            boolean isWriter = x % 2 == 0;
-            RingBufferBenchmark ringBufferBenchmark = new RingBufferBenchmark(x, ringBuffer, isWriter);
-            if (isWriter) {
-                ringBuffer.addProducerThread(ringBufferBenchmark);
-            } else {
-                ringBuffer.addConsumerThread(ringBufferBenchmark);
-            }
+        for (int x = 0; x < writerCount; x++) {
+
+            RingBufferBenchmark ringBufferBenchmark = new RingBufferBenchmark(x, ringBuffer, true);
+            ringBuffer.addProducerThread(ringBufferBenchmark);
+
             threads.add(ringBufferBenchmark);
+        }
+        for (int x = 0; x < readerCount; x++) {
+            RingBufferBenchmark ringBufferBenchmark = new RingBufferBenchmark(x, ringBuffer, false);
+            ringBuffer.addConsumerThread(ringBufferBenchmark);
+            threads.add(ringBufferBenchmark);
+
         }
         long start = System.currentTimeMillis();
 
@@ -59,7 +64,7 @@ public class RingBufferBenchmark extends RingBufferWriter {
         if (writer) {
             while (running) {
                 ringBuffer.write(this, value);
-                requests++;
+                // requests++;
             }
         } else {
             while (running) {
