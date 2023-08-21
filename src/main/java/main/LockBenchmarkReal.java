@@ -52,14 +52,13 @@ public class LockBenchmarkReal extends Thread {
     public static void main(String[] args) throws InterruptedException {
         int threadCount = 12;
         List<LockBenchmarkReal> threads = new ArrayList<>();
+        ReadWriteLock rwlock = new ReentrantReadWriteLock();
 
         for (int i = 1 ; i < threadCount; i++) {
-            ReadWriteLock rwlock = new ReentrantReadWriteLock();
 
             LockBenchmarkReal lockBenchmark = new LockBenchmarkReal("counter", i, rwlock.writeLock());
             threads.add(lockBenchmark);
         }
-        ReadWriteLock rwlock = new ReentrantReadWriteLock();
 
         long start = System.currentTimeMillis();
         for (LockBenchmarkReal loopBenchmark : threads) {

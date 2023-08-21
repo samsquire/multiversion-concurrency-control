@@ -168,11 +168,11 @@ public class Interpreter extends Thread {
 
     public void createMailbox(String mailboxName) {
         this.outqueue.put(mailboxName, new HashMap<Integer, ArrayList<ArrayList<AlternativeMessage>>>());
-        this.inqueue.put(mailboxName, new ArrayList<ArrayList<Slice>>(mailboxes));
+        this.inqueue.put(mailboxName, new ArrayList<ArrayList<Slice>>(threadsSize));
         for (int i = 0; i < threadsSize; i++) {
             this.outqueue.get(mailboxName).put(i, new ArrayList<>(10000));
         }
-        for (int i = 0; i <= mailboxes; i++) {
+        for (int i = 0; i < threadsSize; i++) {
             this.inqueue.get(mailboxName).add(new ArrayList<>());
         }
     }
@@ -246,6 +246,10 @@ public class Interpreter extends Thread {
                 }
 
                 int fallbackMode = -1;
+                if (!thisThread.inqueue.containsKey(mailboxName) || thisThread.inqueue.get(mailboxName).size() <= inbox) {
+                    // not initialised yet
+                    continue;
+                }
                 int targetMode = thisThread.inqueue.get(mailboxName).get(inbox).size() + 1;
                 int messagesSize = messageRate;
                 for (int j = 0; j < main.threadNum - 1; j++) {

@@ -151,13 +151,12 @@ public class RingBuffer {
     }
 
     public void write(RingBufferUserThread writer, int value) {
-        writer.head.set(head.get());
-        writer.head.set(head.incrementAndGet());
-        head.set(head.get() % size);
-        writer.head.set(writer.head.get()%size);
-        while (writer.head.get() >= last_tail.get()+size) {
-            Thread.yield();
-            System.out.println("Cannot write");
+        int i = head.get();
+        int newValue = (i + 1) % size;
+        head.set(newValue);
+        writer.head.set(newValue);
+        while (writer.head.get() >= last_tail.get()) {
+//            System.out.println("Cannot write");
             int min = tail.get();
             for (RingBufferUserThread thread : consumerThreads) {
                 int tmp_t = thread.tail.get();
@@ -177,6 +176,32 @@ public class RingBuffer {
     }
 
 
+    public Integer read(RingBufferUserThread reader) {
+        int andIncrement = tail.get();
+        int newValue = (andIncrement + 1) % size;
+        tail.set(newValue);
+        reader.tail.set(newValue);
 
+        while (reader.tail.get() >= last_head.get()) {
+//            System.out.println(String.format("%d %d Cannot read", reader.tail.get(), last_head.get()));
+            int min = head.get();
+            for (RingBufferUserThread thread : producerThreads) {
+                int tmp_h = thread.head.get();
+                if (tmp_h < min) {
+                    min = tmp_h;
+                }
 
+            }
+
+            last_head.set(min);
+            if (reader.tail.get() < last_head.get() + size) {
+                break;
+            }
+        }
+
+        int returnValue = data[reader.tail.get()];
+        reader.tail.set(Integer.MAX_VALUE);
+//        System.out.println(String.format("Read %d", returnValue));
+        return returnValue;
+    }
 }
