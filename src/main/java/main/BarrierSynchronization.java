@@ -3,6 +3,7 @@ package main;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 public class BarrierSynchronization extends Thread {
     private static final int REACHED = 1;
@@ -16,18 +17,24 @@ public class BarrierSynchronization extends Thread {
     private final int id;
     private List<ConcurrentLinkedQueue<BarrierTask>> clqs;
     private final boolean synchronizer;
+    private int threadCount;
     private ConcurrentLinkedQueue<BarrierTask> clq;
     private volatile boolean running = true;
     private List<BarrierTask> tasks = new ArrayList<>();
+    private List<BarrierSynchronization> threads;
+    private volatile boolean parked;
 
 
     public BarrierSynchronization(int id,
                                   ConcurrentLinkedQueue<BarrierTask> clq,
-                                  List<ConcurrentLinkedQueue<BarrierTask>> clqs, boolean synchronizer) {
+                                  List<ConcurrentLinkedQueue<BarrierTask>> clqs,
+                                  boolean synchronizer,
+                                  int threadCount) {
         this.id = id;
         this.clq = clq;
         this.clqs = clqs;
         this.synchronizer = synchronizer;
+        this.threadCount = threadCount;
     }
 
     public static void main(String args[]) throws InterruptedException {
@@ -48,14 +55,15 @@ public class BarrierSynchronization extends Thread {
             BarrierTask task = new BarrierTask(parent, threadCount, x, threadCount);
             tasks.add(task);
         }
-        BarrierSynchronization synchronizer = new BarrierSynchronization(-1, null, clqs, true);
-        synchronizer.start();
+        BarrierSynchronization synchronizer = new BarrierSynchronization(-1, null, clqs, true, threadCount);
         List<BarrierSynchronization> threads = new ArrayList();
         for (int x = 0; x < threadCount; x++) {
-            BarrierSynchronization thread = new BarrierSynchronization(x, clqs.get(x), clqs, false);
+            BarrierSynchronization thread = new BarrierSynchronization(x, clqs.get(x), clqs, false, threadCount);
             threads.add(thread);
             thread.addTask(tasks.get(x));
         }
+        synchronizer.setThreads(threads);
+        synchronizer.start();
         for (BarrierSynchronization thread : threads) {
             thread.start();
         }
@@ -81,6 +89,10 @@ public class BarrierSynchronization extends Thread {
         System.out.println("Finished");
     }
 
+    private void setThreads(List<BarrierSynchronization> threads) {
+        this.threads = threads;
+    }
+
     private void addTask(BarrierTask barrierTask) {
         this.tasks.add(barrierTask);
     }
@@ -88,16 +100,24 @@ public class BarrierSynchronization extends Thread {
     public void run() {
         if (synchronizer) {
             while (running) {
+                int empty = 0;
                 for (ConcurrentLinkedQueue<BarrierTask> clq : clqs) {
                     BarrierTask item = clq.poll();
                     if (item != null) {
                         item.run();
                     } else {
+                        empty++;
+                    }
+                }
+                if (empty == threadCount) {
+                    for (BarrierSynchronization thread : threads) {
+                        thread.parked = false;
                     }
                 }
             }
         } else {
             while (running) {
+
                 for (BarrierTask task : tasks) {
 
 
@@ -105,8 +125,9 @@ public class BarrierSynchronization extends Thread {
                         task.ready();
                     }
 
-                    if (true) {
+                    if (canRun(task)) {
                         clq.offer(task);
+                        parked = true;
                     } else {
 
                         // task.run();
@@ -116,6 +137,10 @@ public class BarrierSynchronization extends Thread {
                 }
             }
         }
+    }
+
+    private boolean canRun(BarrierTask task) {
+        return !parked;
     }
 
     private boolean ready(BarrierTask task) {
