@@ -1,9 +1,9 @@
 package main;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
 
 public class BarrierSynchronization extends Thread {
     private static final int REACHED = 1;
