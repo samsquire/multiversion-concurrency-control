@@ -2,6 +2,7 @@ package main;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class NonBlockingBarrierSynchronization extends Thread {
     private final int id;
@@ -11,18 +12,27 @@ public class NonBlockingBarrierSynchronization extends Thread {
 
     public NonBlockingBarrierSynchronization(int id) {
         this.id = id;
+
         tasks = new ArrayList<>();
         for (int x = 0 ; x < 3; x++) {
-            BarrierTask barrierTask = new BarrierTask(id, x);
+            BarrierTask barrierTask = new BarrierTask(id, x, tasks);
+            barrierTask.wait = true;
             tasks.add(barrierTask);
         }
-        tasks.get(1).wait = true;
-        tasks.get(2).wait = true;
+        tasks.get(0).wait = false;
+        BarrierTask resetTask = new ResetTask(id, 3, tasks);
+        tasks.add(resetTask);
+        tasks.get(3).wait = true;
+//        BarrierTask waitTask = new BarrierTask(id, 4, tasks);
+//        tasks.add(waitTask);
+//        tasks.get(4).wait = true;
+        // tasks.get(4).arrived = true;
     }
 
     public static void main(String args[]) throws InterruptedException {
         int threadCount = 12;
-        long seconds = 5;
+        long seconds = 20;
+
         List<NonBlockingBarrierSynchronization> threads = new ArrayList<>();
         for (int x = 0; x < threadCount; x++) {
             NonBlockingBarrierSynchronization thread =
@@ -42,41 +52,61 @@ public class NonBlockingBarrierSynchronization extends Thread {
         for (int x = 0; x < threadCount; x++) {
             threads.get(x).join();
         }
+        long n = 0;
+        for (NonBlockingBarrierSynchronization thread : threads) {
+            for (BarrierTask task : thread.tasks) {
+                n += task.n;
+            }
+        }
+        System.out.println(String.format("Requests %d", n));
+        System.out.println(String.format("Requests per second %d", n / seconds));
 
     }
     public void run() {
 
 
         while (running) {
-            for (int x = 0 ; x < 3; x++) {
+            for (int x = 0 ; x < tasks.size(); x++) {
                 BarrierTask task = tasks.get(x);
-                if (x > 0 && task.wait && task.available) {
+                if (task.wait && task.available) {
                     int arrived = 0;
-                    int departed = 0;
+
+                    int previous = (x > 0 ? x - 1 : tasks.size() - 1 );
+
                     for (NonBlockingBarrierSynchronization thread : threads) {
-                        if (thread.tasks.get(x - 1).arrived) {
+                        if (thread.tasks.get(previous).arrived.get() == task.arrived.get()) {
                             arrived++;
                         }
-                        if (thread.tasks.get(x - 1).departed) {
-                            departed++;
-                        }
-                    }
-                    if (arrived != threads.size()) {
+//                         System.out.println(String.format(" %d %d %d", arrived, thread.tasks.get(previous).arrived.get(), tasks.get(previous).arrived.get()));
 
-                        // we cannot continue
-                        break;
-                    } else {
+
+                    }
+//                        System.out.println(String.format("stopped on %d", same));
+
+                    if ((arrived == 0) || arrived == threads.size()) {
+//                         tasks.get(previous).arrived = false;
                         task.available = false;
                         task.run();
                         task.arrive();
-
+//
+                        break;
                     }
+                    else if (arrived != threads.size()) {
+                        // we cannot continue
+//                        System.out.println(String.format("we cannot continue %d arrived %d at task %d", arrived, threads.size(), x));
+                        break;
+                    } else {}
                 } else if (task.available) {
+
                     task.available = false;
                     task.run();
                     task.arrive();
+
+                } else {
+
                 }
             }
+
         }
     }
     private void setThreads(ArrayList<NonBlockingBarrierSynchronization> threads) {
@@ -84,15 +114,18 @@ public class NonBlockingBarrierSynchronization extends Thread {
     }
 
     private static class BarrierTask {
+        private final List<BarrierTask> tasks;
         public boolean departed;
+        public boolean reset;
         private volatile boolean wait;
-        private volatile boolean arrived;
+        private AtomicInteger arrived = new AtomicInteger();
         private final int id;
-        private final int task;
+        public final int task;
         public volatile boolean available;
+        private int n;
 
-        public BarrierTask(int id, int task) {
-            this.arrived = false;
+        public BarrierTask(int id, int task, List<BarrierTask> tasks) {
+            this.tasks = tasks;
             this.id = id;
             this.task = task;
             this.available = true;
@@ -100,16 +133,45 @@ public class NonBlockingBarrierSynchronization extends Thread {
             this.departed = false;
         }
         public void run() {
-            System.out.println(String.format("Thread %d arrived Task %d", this.id, this.task));
+            // System.out.println(String.format("Thread %d arrived Task %d", this.id, this.task));
+
+            n++;
+
         }
 
         public void arrive() {
-            this.arrived = true;
+            this.arrived.incrementAndGet();
         }
 
         public void depart() {
             this.departed = true;
         }
     }
+
+    private class ResetTask extends BarrierTask {
+        public ResetTask(int id, int task, List<BarrierTask> tasks) {
+            super(id, task, tasks);
+            super.reset = true;
+
+        }
+        public void run() {
+            super.n++;
+//            System.out.println(String.format("Thread %d arrived Task %d (reset)", id, task));
+            for (int x = 0 ; x < tasks.size(); x++) {
+
+                BarrierTask task = tasks.get(x);
+                task.wait = true;
+                task.available = true;
+                task.arrived.incrementAndGet();
+            }
+
+// interlocking, lets move into place, gravity
+            // an be safely single threaded but concurrent
+
+
+        }
+    }
+
+
 }
 
