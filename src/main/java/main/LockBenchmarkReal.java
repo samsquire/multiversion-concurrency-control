@@ -58,7 +58,9 @@ public class LockBenchmarkReal extends Thread {
 
             LockBenchmarkReal lockBenchmark = new LockBenchmarkReal("counter", i, rwlock.writeLock());
             threads.add(lockBenchmark);
+            lockBenchmark.setThreads(threads);
         }
+
 
         long start = System.currentTimeMillis();
         for (LockBenchmarkReal loopBenchmark : threads) {
@@ -77,6 +79,7 @@ public class LockBenchmarkReal extends Thread {
         long totalRequests = 0;
         for (LockBenchmarkReal thread : threads) {
             totalRequests += thread.counter;
+            System.out.println(String.format("Thread counter %d", thread.counter));
         }
 
         System.out.println(String.format("%d total requests", totalRequests));

@@ -73,17 +73,22 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
 
     public void run() {
         int x = 0;
-
+        int t = 0;
         while (running) {
-            for (; x < tasks.size(); x = (x + 1)) {
+            if (x >= tasks.size() - 1) {
+                x = 0;
+            }
+            for (; x < tasks.size(); x = (x + 1), t = 0) {
+                int previous = (x > 0 ? x - 1 : tasks.size() - 1);
                 BarrierTask task = tasks.get(x);
+                BarrierTask previousTask = tasks.get(previous);
                 if (task.available) {
                     int arrived = 0;
 
-                    int previous = (x > 0 ? x - 1 : tasks.size() - 1);
 
-                    for (NonBlockingBarrierSynchronizationSteal thread : threads) {
-                        if (thread.tasks.get(previous).arrived == task.arrived) {
+
+                    for (; t < threads.size() ; t++) {
+                        if (threads.get(t).tasks.get(previous).arrived == task.arrived) {
                             arrived++;
                         }
 //                         System.out.println(String.format(" %d %d %d", arrived, thread.tasks.get(previous).arrived.get(), tasks.get(previous).arrived.get()));
@@ -96,25 +101,24 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
 //                         tasks.get(previous).arrived = false;
                         task.available = false;
                         task.run();
+//                        System.out.println(task.getClass());
                         task.arrive();
+                        t = 0;
 //
-                        break;
+//                        break;
                     } else {
                         // we cannot continue
 //                        System.out.println(String.format("we cannot continue %d arrived %d at task %d", arrived, threads.size(), x));
+                        if (previousTask.rerunnable) {
+                            // previousTask.run();
+                        }
+//                         System.out.println(task.getClass());
+
                         break;
                     }
-                } else if (task.available) {
-
-                    task.available = false;
-                    task.run();
-                    task.arrive();
-                    break;
-                } else {
-
                 }
             }
-            x = x % tasks.size();
+
 
         }
     }
@@ -126,6 +130,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
     private static class BarrierTask {
         private final List<BarrierTask> tasks;
         private final int stealingThread;
+        public boolean rerunnable;
         public boolean departed;
         public boolean reset;
         private volatile boolean wait;
@@ -135,7 +140,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
         private final List<NonBlockingBarrierSynchronizationSteal> threads;
         private final int threadCount;
         public volatile boolean available;
-        protected volatile int n;
+        protected int n;
         private List<List<ThreadWork>> threadWork = new ArrayList<>();
 
         public BarrierTask(int id, int task, List<BarrierTask> tasks,
@@ -153,6 +158,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
             for (int x = 0; x < threadCount; x++) {
                 threadWork.add(new ArrayList<>());
             }
+            this.rerunnable = true;
         }
 
         public void run() {
@@ -191,7 +197,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
         public ResetTask(int id, int task, List<BarrierTask> tasks, int stealingThread) {
             super(id, task, tasks, threads, threadCount, stealingThread);
             super.reset = true;
-
+            rerunnable = false;
         }
 
         public void run() {
@@ -221,18 +227,21 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
                          int threadCount,
                          int stealThread) {
             super(id, x, tasks, threads, threadCount, stealThread);
+            rerunnable = false;
+
         }
 
         public void run() {
             super.n++;
             for (int b = 0; b < tasks.size() - 1; b++) {
                 for (int x = 0; x < threadCount; x++) {
-                    List<List<ThreadWork>> threadWork = threads.get(x).tasks.get(id).threadWork;
-                    for (ThreadWork work : threadWork.get(b)) {
+                    List<List<ThreadWork>> threadWork = threads.get(x).tasks.get(b).threadWork;
+//            System.out.println(String.format("Thread %d stealing...%d items", id, threadWork.get(id).size()));
+                    for (ThreadWork work : threadWork.get(id)) {
 //                         System.out.println(String.format("Stole %s", work.text));
                         n++;
                     }
-                    threadWork.get(b).clear();
+                    threadWork.get(id).clear();
 
                 }
             }
