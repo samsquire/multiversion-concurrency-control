@@ -2,6 +2,7 @@ package main;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class NonBlockingBarrierSynchronizationSteal extends Thread {
     private final int threadCount;
@@ -39,7 +40,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
 
     public static void main(String args[]) throws InterruptedException {
         int threadCount = 12;
-        long seconds = 20;
+        long seconds = 5;
 
         List<NonBlockingBarrierSynchronizationSteal> threads = new ArrayList<>();
         for (int x = 0; x < threadCount; x++) {
@@ -64,6 +65,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
         for (NonBlockingBarrierSynchronizationSteal thread : threads) {
             for (BarrierTask task : thread.tasks) {
                 n += task.n;
+//                System.out.println(task.tasks.size());
             }
         }
         System.out.println(String.format("Requests %d", n));
@@ -74,6 +76,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
     public void run() {
         int x = 0;
         int t = 0;
+        int arrived = 0;
         while (running) {
             if (x >= tasks.size() - 1) {
                 x = 0;
@@ -83,9 +86,6 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
                 BarrierTask task = tasks.get(x);
                 BarrierTask previousTask = tasks.get(previous);
                 if (task.available) {
-                    int arrived = 0;
-
-
 
                     for (; t < threads.size() ; t++) {
                         if (threads.get(t).tasks.get(previous).arrived == task.arrived) {
@@ -96,28 +96,32 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
 
                     }
 //                        System.out.println(String.format("stopped on %d", same));
-
-                    if ((arrived == 0) || arrived == threads.size()) {
+//                    System.out.println(String.format("%d t arrived %d", t, arrived));
+                    if ((arrived == 0 && (t == threads.size())) || arrived == threads.size()) {
 //                         tasks.get(previous).arrived = false;
                         task.available = false;
                         task.run();
 //                        System.out.println(task.getClass());
                         task.arrive();
                         t = 0;
-//
-//                        break;
+                        arrived = 0;
+                        break;
                     } else {
                         // we cannot continue
 //                        System.out.println(String.format("we cannot continue %d arrived %d at task %d", arrived, threads.size(), x));
                         if (previousTask.rerunnable) {
-                            // previousTask.run();
+//                             previousTask.run();
                         }
+                        t = 0;
+                        arrived = 0;
+
 //                         System.out.println(task.getClass());
 
                         break;
                     }
                 }
             }
+            // arrived = 0;
 
 
         }
@@ -139,7 +143,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
         public final int task;
         private final List<NonBlockingBarrierSynchronizationSteal> threads;
         private final int threadCount;
-        public volatile boolean available;
+        public boolean available;
         protected int n;
         private List<List<ThreadWork>> threadWork = new ArrayList<>();
 
@@ -168,11 +172,16 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
 
                 for (int t = 0; t < threadCount; t++) {
                     if (b != stealingThread) {
-                        threads.get(((id + t) % threads.size())).tasks.get(b).threadWork.get(id).add(new ThreadWork(String.format("%d Work from thread to thread %d", b, id)));
+                        threads.get(((id + t) %
+                                threads.size())).tasks.get(b)
+                                .threadWork.get(id)
+                                .add(new ThreadWork(
+                                        String.format(
+        "%d Work from thread to thread %d", b, id)));
                     }
                 }
             }
-            n++;
+//            n++;
 
         }
 
@@ -201,7 +210,7 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
         }
 
         public void run() {
-            super.n++;
+//            super.n++;
 //            System.out.println(String.format("Thread %d arrived Task %d (reset)", id, task));
             for (int x = 0; x < tasks.size(); x++) {
 
@@ -232,16 +241,21 @@ public class NonBlockingBarrierSynchronizationSteal extends Thread {
         }
 
         public void run() {
-            super.n++;
+//            super.n++;
             for (int b = 0; b < tasks.size() - 1; b++) {
                 for (int x = 0; x < threadCount; x++) {
                     List<List<ThreadWork>> threadWork = threads.get(x).tasks.get(b).threadWork;
 //            System.out.println(String.format("Thread %d stealing...%d items", id, threadWork.get(id).size()));
-                    for (ThreadWork work : threadWork.get(id)) {
+
+
+                            for (ThreadWork work : threadWork.get(id)) {
 //                         System.out.println(String.format("Stole %s", work.text));
-                        n++;
-                    }
-                    threadWork.get(id).clear();
+                                n++;
+                            }
+                        threadWork.get(id).clear();
+
+
+
 
                 }
             }

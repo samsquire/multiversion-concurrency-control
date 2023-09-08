@@ -12,7 +12,8 @@ This repository is where I do experimental work on concurrency and parallelism p
 * An incomplete high level programming language compiler that resembles Javascript that codegen targets the multithreaded interpreter
 * An async await switch statement
 * Async/await thread pool
-* A Soft Lock, a compositional lock scheme
+* A Soft Lock, a compositional lock scheme, where we schedule to provide mutual exclusivity
+* NonBlockingBarrierSynchronization.java, a nonblocking barrier and NonBlockingBarrierSynchronizationSteal a nonblocking barrier with work stealing.
 
 The headline implementation is a multithreaded multiversion concurrency control solution which handles safe and concurrent access to a database of integers without locking. We timestamp read events and check if there is any read event with a timestamp that is lower than us, in which case, we restart our transaction.
 
@@ -202,7 +203,11 @@ Which executes twice because I haven't written guards.
 {1={balance=900, details={name=Samuel Squire}}}
 ```
 
+# NonBlockingBarrierSynchronizationSteal
 
+This is inspired by bulk synchronous parallel. It's an approach to scalability.
+
+See https://github.com/samsquire/ideas5#634-state-machine-formulation-with-sharding-framework-and-nonblocking-barriers
 
 # AsyncAwait.java
 
