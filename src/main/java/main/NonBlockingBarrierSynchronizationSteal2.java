@@ -21,14 +21,17 @@ public class NonBlockingBarrierSynchronizationSteal2 extends Thread {
             BarrierTask barrierTask = null;
             if (x == threadCount - 1) {
                 barrierTask = new StealTask(id, x, tasks, threads, threadCount, x);
+                tasks.add(barrierTask);
+                ClearTask clearTask = new ClearTask(id, tasks.size(), tasks, threads, threadCount, tasks.size());
+                tasks.add(clearTask);
             } else {
                 barrierTask = new BarrierTask(id, x, tasks, threads, threadCount, x);
+                tasks.add(barrierTask);
             }
             barrierTask.wait = true;
-            tasks.add(barrierTask);
+
         }
-        ClearTask clearTask = new ClearTask(id, tasks.size(), tasks, threads, threadCount, tasks.size());
-        tasks.add(clearTask);
+
         tasks.get(0).wait = false;
         BarrierTask resetTask = new ResetTask(id, tasks.size(), tasks, id);
         tasks.add(resetTask);
@@ -265,6 +268,7 @@ public class NonBlockingBarrierSynchronizationSteal2 extends Thread {
     private class ClearTask extends BarrierTask {
         public ClearTask(int id, int task, List<BarrierTask> tasks, List<NonBlockingBarrierSynchronizationSteal2> threads, int threadCount, int stealingThread) {
             super(id, task, tasks, threads, threadCount, stealingThread);
+            rerunnable = false;
         }
         public void run() {
             for (BarrierTask task : tasks) {
