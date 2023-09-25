@@ -25,8 +25,6 @@ ConcurrentWithdrawer is another attempt to implement MVCC - it simulates 5 users
 
 With the exception of RingBuffer.java and Left right concurrency control and Raft the code in this repository is the following licence:
 
-# Licence
-
 BSD Zero Clause License
 
 Copyright (C) 2023 by Samuel Michael Squire sam@samsquire.com
