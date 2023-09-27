@@ -27,7 +27,7 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
             BarrierTask barrierTask = null;
             if (x == tcount - 1) {
                 if (id == threadCount - 1) {
-                    barrierTask = new StealTask(x, x, tasks, threads, threadCount, x, bt);
+                    barrierTask = new StealTask(id, x, tasks, threads, threadCount, x, bt);
                     barrierTask.wait = true;
                     tasks.add(barrierTask);
                     ClearTask clearTask = new ClearTask(x, tasks.size(), tasks, threads, threadCount, tasks.size());
@@ -35,16 +35,16 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
                     tasks.add(clearTask);
                 } else {
                     System.out.println(String.format("%d %d", x, id));
-                    barrierTask = new NullTask(x, x, tasks, threads, threadCount, x);
+                    barrierTask = new NullTask(id, x, tasks, threads, threadCount, x);
                     barrierTask.wait = true;
                     tasks.add(barrierTask);
-                    barrierTask = new BarrierTask(x, x, tasks, threads, threadCount, x);
+                    barrierTask = new BarrierTask(id, x, tasks, threads, threadCount, x);
                     barrierTask.wait = true;
                     tasks.add(barrierTask);
                 }
             } else {
                 bt = x;
-                barrierTask = new BarrierTask(x, x, tasks, threads, threadCount, x);
+                barrierTask = new BarrierTask(id, x, tasks, threads, threadCount, x);
                 tasks.add(barrierTask);
             }
             barrierTask.wait = true;
@@ -174,9 +174,9 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
                         // we cannot continue
 //                        System.out.println(String.format("we cannot continue %d arrived %d at task %d", arrived, threads.size(), x));
                         if (previousTask.rerunnable && task.rerunnable) {
-                            scheduled.put(task, true);
-                            previousTask.run();
-                            scheduled.put(task, false);
+//                            scheduled.put(previousTask, true);
+//                            previousTask.run();
+//                            scheduled.put(previousTask, false);
                         }
                         arrived = 0;
 
@@ -247,7 +247,7 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
             parent.scheduled.put(this, false);
 
 
-//             System.out.println(String.format("Thread %d arrived Task %d", this.id, this.task));
+             System.out.println(String.format("Thread %d arrived Task %d", this.id, this.task));
 
             n++;
         }

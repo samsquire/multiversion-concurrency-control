@@ -11,7 +11,7 @@ public class NonBlockingBarrierSynchronizationSteal2 extends Thread {
     private volatile boolean running = true;
 
     public NonBlockingBarrierSynchronizationSteal2
-            (int threadCount, int id,
+            (int id, int threadCount,
              List<NonBlockingBarrierSynchronizationSteal2> threads) {
         this.threadCount = threadCount;
         this.id = id;
@@ -20,12 +20,12 @@ public class NonBlockingBarrierSynchronizationSteal2 extends Thread {
         for (int x = 0; x < threadCount; x++) {
             BarrierTask barrierTask = null;
             if (x % 2 == 1) {
-                barrierTask = new StealTask(x, x, tasks, threads, threadCount, x);
+                barrierTask = new StealTask(id, x, tasks, threads, threadCount, x);
                 tasks.add(barrierTask);
-                ClearTask clearTask = new ClearTask(x, tasks.size(), tasks, threads, threadCount, tasks.size());
+                ClearTask clearTask = new ClearTask(id, tasks.size(), tasks, threads, threadCount, tasks.size());
                 tasks.add(clearTask);
             } else {
-                barrierTask = new BarrierTask(x, x, tasks, threads, threadCount, x);
+                barrierTask = new BarrierTask(id, x, tasks, threads, threadCount, x);
                 tasks.add(barrierTask);
             }
             barrierTask.wait = true;
@@ -49,7 +49,7 @@ public class NonBlockingBarrierSynchronizationSteal2 extends Thread {
         List<NonBlockingBarrierSynchronizationSteal2> threads = new ArrayList<>();
         for (int x = 0; x < threadCount; x++) {
             NonBlockingBarrierSynchronizationSteal2 thread =
-                    new NonBlockingBarrierSynchronizationSteal2(threadCount, x, threads);
+                    new NonBlockingBarrierSynchronizationSteal2(x, threadCount, threads);
             threads.add(thread);
         }
         for (int x = 0; x < threadCount; x++) {
@@ -167,7 +167,7 @@ public class NonBlockingBarrierSynchronizationSteal2 extends Thread {
         }
 
         public void run() {
-//             System.out.println(String.format("Thread %d arrived Task %d", this.id, this.task));
+             System.out.println(String.format("Thread %d arrived Task %d", this.id, this.task));
             int size = this.tasks.size();
 
                 for (int t = 0; t < threadCount; t++) {

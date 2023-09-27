@@ -2,21 +2,24 @@ package main;
 
 import java.util.*;
 
-public class NonBlockingBarrierSynchronizationPreempt extends Thread {
+public class NonBlockingBarrierSynchronizationPreemptDLL extends Thread {
     private final int threadCount;
     private final int id;
     private final List<BarrierTask> tasks;
-    private volatile ArrayList<NonBlockingBarrierSynchronizationPreempt> threads;
+    private volatile ArrayList<NonBlockingBarrierSynchronizationPreemptDLL> threads;
     private volatile boolean running = true;
     public Map<BarrierTask, Boolean> scheduled = new HashMap<>();
 
+    public DoublyLinkedList data;
 
-    public NonBlockingBarrierSynchronizationPreempt
-            (int threadCount, int id,
-             List<NonBlockingBarrierSynchronizationPreempt> threads) {
+    public NonBlockingBarrierSynchronizationPreemptDLL
+            (int threadCount,
+             int id,
+             List<NonBlockingBarrierSynchronizationPreemptDLL> threads,
+             DoublyLinkedList data) {
         this.threadCount = threadCount;
         this.id = id;
-
+        this.data = data;
 
 
         tasks = new ArrayList<>();
@@ -38,13 +41,13 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
                     barrierTask = new NullTask(x, x, tasks, threads, threadCount, x);
                     barrierTask.wait = true;
                     tasks.add(barrierTask);
-                    barrierTask = new BarrierTask(x, x, tasks, threads, threadCount, x);
+                    barrierTask = new BarrierTask(x, x, tasks, threads, threadCount, x, data);
                     barrierTask.wait = true;
                     tasks.add(barrierTask);
                 }
             } else {
                 bt = x;
-                barrierTask = new BarrierTask(x, x, tasks, threads, threadCount, x);
+                barrierTask = new BarrierTask(x, x, tasks, threads, threadCount, x, data);
                 tasks.add(barrierTask);
             }
             barrierTask.wait = true;
@@ -73,14 +76,14 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
     public static void main(String args[]) throws InterruptedException {
         int threadCount = 12;
         long seconds = 12;
-
-        List<NonBlockingBarrierSynchronizationPreempt> threads = new ArrayList<>();
+        DoublyLinkedList data = new DoublyLinkedList(0, System.currentTimeMillis());
+        List<NonBlockingBarrierSynchronizationPreemptDLL> threads = new ArrayList<>();
         for (int x = 0; x < threadCount; x++) {
-            NonBlockingBarrierSynchronizationPreempt thread =
-                    new NonBlockingBarrierSynchronizationPreempt(threadCount, x, threads);
+            NonBlockingBarrierSynchronizationPreemptDLL thread =
+                    new NonBlockingBarrierSynchronizationPreemptDLL(threadCount, x, threads, data);
             threads.add(thread);
         }
-        for (NonBlockingBarrierSynchronizationPreempt thread : threads) {
+        for (NonBlockingBarrierSynchronizationPreemptDLL thread : threads) {
             for (BarrierTask task : thread.tasks) {
                 System.out.println(String.format("%d %d %s", thread.id, task.task, task.getClass()));
             }
@@ -96,7 +99,7 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                for (NonBlockingBarrierSynchronizationPreempt thread: threads) {
+                for (NonBlockingBarrierSynchronizationPreemptDLL thread: threads) {
                     thread.prempt();
                 }
             }
@@ -112,7 +115,7 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
             threads.get(x).join();
         }
         long n = 0;
-        for (NonBlockingBarrierSynchronizationPreempt thread : threads) {
+        for (NonBlockingBarrierSynchronizationPreemptDLL thread : threads) {
             for (BarrierTask task : thread.tasks) {
                 n += task.n;
 //                System.out.println(task.tasks.size());
@@ -192,7 +195,7 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
         }
     }
 
-    private void setThreads(ArrayList<NonBlockingBarrierSynchronizationPreempt> threads) {
+    private void setThreads(ArrayList<NonBlockingBarrierSynchronizationPreemptDLL> threads) {
         this.threads = threads;
     }
 
@@ -202,13 +205,14 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
         public boolean rerunnable = false;
         public boolean departed;
         public boolean reset;
-        public NonBlockingBarrierSynchronizationPreempt parent;
+        public NonBlockingBarrierSynchronizationPreemptDLL parent;
         private volatile boolean wait = true;
         private volatile int arrived;
         private final int id;
         public final int task;
-        private final List<NonBlockingBarrierSynchronizationPreempt> threads;
+        private final List<NonBlockingBarrierSynchronizationPreemptDLL> threads;
         private final int threadCount;
+        private final DoublyLinkedList data2;
         public boolean available;
         protected long n;
         private List<List<ThreadWork>> threadWork = new ArrayList<>();
@@ -218,14 +222,19 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
         boolean[] preempted = new boolean[1];
         int[] remembered = new int[1];
         int tcount;
-        public BarrierTask(int id, int task, List<BarrierTask> tasks,
-                           List<NonBlockingBarrierSynchronizationPreempt> threads,
-                           int threadCount, int stealingThread) {
+        public BarrierTask(int id,
+                           int task,
+                           List<BarrierTask> tasks,
+                           List<NonBlockingBarrierSynchronizationPreemptDLL> threads,
+                           int threadCount,
+                           int stealingThread,
+                           DoublyLinkedList data) {
             this.tasks = tasks;
             this.id = id;
             this.task = task;
             this.threads = threads;
             this.threadCount = threadCount;
+            data2 = data;
             this.available = true;
             this.wait = false;
             this.departed = false;
@@ -281,7 +290,7 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
 
     private class ResetTask extends BarrierTask {
         public ResetTask(int id, int task, List<BarrierTask> tasks, int stealingThread) {
-            super(id, task, tasks, threads, threadCount, stealingThread);
+            super(id, task, tasks, threads, threadCount, stealingThread, data);
             super.reset = true;
             rerunnable = false;
         }
@@ -311,10 +320,10 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
         public StealTask(int id,
                          int x,
                          List<BarrierTask> tasks,
-                         List<NonBlockingBarrierSynchronizationPreempt> threads,
+                         List<NonBlockingBarrierSynchronizationPreemptDLL> threads,
                          int threadCount,
                          int stealThread, int bt) {
-            super(id, x, tasks, threads, threadCount, stealThread);
+            super(id, x, tasks, threads, threadCount, stealThread, data);
             this.bt = bt;
             this.rerunnable = false;
 
@@ -340,8 +349,8 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
     }
 
     private class ClearTask extends BarrierTask {
-        public ClearTask(int id, int task, List<BarrierTask> tasks, List<NonBlockingBarrierSynchronizationPreempt> threads, int threadCount, int stealingThread) {
-            super(id, task, tasks, threads, threadCount, stealingThread);
+        public ClearTask(int id, int task, List<BarrierTask> tasks, List<NonBlockingBarrierSynchronizationPreemptDLL> threads, int threadCount, int stealingThread) {
+            super(id, task, tasks, threads, threadCount, stealingThread, data);
             rerunnable = false;
         }
 
@@ -358,10 +367,10 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
         public NullTask(int x,
                         int x1,
                         List<BarrierTask> tasks,
-                        List<NonBlockingBarrierSynchronizationPreempt> threads,
+                        List<NonBlockingBarrierSynchronizationPreemptDLL> threads,
                         int threadCount,
                         int x2) {
-            super(x, x1, tasks, threads, threadCount, x2);
+            super(x, x1, tasks, threads, threadCount, x2, data);
             rerunnable = false;
         }
         public void run() {
