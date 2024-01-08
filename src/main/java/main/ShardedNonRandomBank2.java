@@ -57,7 +57,7 @@ public class ShardedNonRandomBank2 extends Thread {
         Random rng = new Random();
         int threadsCount = 12;
         System.out.println(String.format("Thread count: %d", threadsCount));
-        int accountsSize = 120000;
+        int accountsSize = 80000;
         System.out.println(String.format("Account count: %d", accountsSize));
 
         List<ShardedNonRandomBank2> threads = new ArrayList<>(threadsCount);

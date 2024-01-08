@@ -54,9 +54,10 @@ public class LockBenchmarkReal extends Thread {
         List<LockBenchmarkReal> threads = new ArrayList<>();
         ReadWriteLock rwlock = new ReentrantReadWriteLock();
 
+        Lock writeLock1 = rwlock.writeLock();
         for (int i = 1 ; i < threadCount; i++) {
 
-            LockBenchmarkReal lockBenchmark = new LockBenchmarkReal("counter", i, rwlock.writeLock());
+            LockBenchmarkReal lockBenchmark = new LockBenchmarkReal("counter", i, writeLock1);
             threads.add(lockBenchmark);
             lockBenchmark.setThreads(threads);
         }

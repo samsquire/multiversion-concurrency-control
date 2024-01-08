@@ -88,9 +88,9 @@ class Actor2 extends Thread {
         ArrayList<Actor2> threads = new ArrayList<>();
         ArrayList<Actor2> allThreads = new ArrayList<>();
         int mailboxes = 10;
-        int messageRate = 10;
-        int numSubthreads = 1;
-        int threadCount = 12;
+        int messageRate = 2500;
+        int numSubthreads = 2;
+        int threadCount = 3;
         System.out.println("Creating test data...");
 
 

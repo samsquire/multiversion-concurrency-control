@@ -159,8 +159,8 @@ public class ShardedBankNonRandom extends Thread {
 
     public static void main(String[] args) throws InterruptedException {
         Random rng = new Random();
-        int threadCount = 11;
-        int accountsSize = 800000;
+        int threadCount = 6;
+        int accountsSize = 80000;
 
         long size = Long.MAX_VALUE / threadCount;
 

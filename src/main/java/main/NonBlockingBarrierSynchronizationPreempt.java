@@ -247,7 +247,7 @@ public class NonBlockingBarrierSynchronizationPreempt extends Thread {
             parent.scheduled.put(this, false);
 
 
-             System.out.println(String.format("Thread %d arrived Task %d", this.id, this.task));
+//             System.out.println(String.format("Thread %d arrived Task %d", this.id, this.task));
 
             n++;
         }
